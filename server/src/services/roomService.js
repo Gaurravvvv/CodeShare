@@ -24,6 +24,7 @@ export async function createRoom() {
     adminToken,
     blocks: JSON.stringify([{
       id: uuidv4(),
+      name: 'main.js',
       code: '',
       language: 'javascript'
     }]),
@@ -81,7 +82,7 @@ export async function updateCodeBlock(roomId, blockId, code) {
   if (data.blocks) {
     blocks = JSON.parse(data.blocks);
   } else if (data.code !== undefined) {
-    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+    blocks = [{ id: "legacy-block", name: 'legacy.js', code: data.code, language: data.language || 'javascript' }];
   }
 
   const blockIndex = blocks.findIndex(b => b.id === blockId);
@@ -103,7 +104,7 @@ export async function updateLanguageBlock(roomId, blockId, language) {
   if (data.blocks) {
     blocks = JSON.parse(data.blocks);
   } else if (data.code !== undefined) {
-    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+    blocks = [{ id: "legacy-block", name: 'legacy.js', code: data.code, language: data.language || 'javascript' }];
   }
 
   const blockIndex = blocks.findIndex(b => b.id === blockId);
@@ -125,11 +126,12 @@ export async function addCodeBlock(roomId) {
   if (data.blocks) {
     blocks = JSON.parse(data.blocks);
   } else if (data.code !== undefined) {
-    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+    blocks = [{ id: "legacy-block", name: 'legacy.js', code: data.code, language: data.language || 'javascript' }];
   }
   
   const newBlock = {
     id: uuidv4(),
+    name: `untitled-${blocks.length}.js`,
     code: '',
     language: 'javascript'
   };
@@ -152,7 +154,7 @@ export async function deleteCodeBlock(roomId, blockId) {
   if (data.blocks) {
     blocks = JSON.parse(data.blocks);
   } else if (data.code !== undefined) {
-    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+    blocks = [{ id: "legacy-block", name: 'legacy.js', code: data.code, language: data.language || 'javascript' }];
   }
   
   // Prevent deleting the very last block
@@ -161,6 +163,26 @@ export async function deleteCodeBlock(roomId, blockId) {
   blocks = blocks.filter(b => b.id !== blockId);
   await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
   await resetTTL(roomId);
+}
+
+/**
+ * Update the name for a specific block.
+ */
+export async function updateBlockName(roomId, blockId, name) {
+  const data = await redis.hgetall(`room:${roomId}`);
+  if (!data || Object.keys(data).length === 0) return;
+  
+  let blocks = [];
+  if (data.blocks) {
+    blocks = JSON.parse(data.blocks);
+  }
+
+  const blockIndex = blocks.findIndex(b => b.id === blockId);
+  if (blockIndex !== -1) {
+    blocks[blockIndex].name = name;
+    await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
+    await resetTTL(roomId);
+  }
 }
 
 /**
@@ -177,6 +199,19 @@ export async function addFile(roomId, fileData) {
   await resetTTL(roomId);
   return files;
 }
+
+/**
+ * Remove a file entry from the room's file list.
+ */
+export async function removeFile(roomId, fileKey) {
+  const filesRaw = await redis.hget(`room:${roomId}`, 'files');
+  let files = JSON.parse(filesRaw || '[]');
+  files = files.filter(f => f.key !== fileKey);
+  await redis.hset(`room:${roomId}`, 'files', JSON.stringify(files));
+  await resetTTL(roomId);
+  return files;
+}
+
 
 /**
  * Reset the TTL for a room (called on every interaction).

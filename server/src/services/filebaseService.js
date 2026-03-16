@@ -106,3 +106,24 @@ export async function deleteRoomFiles(roomId) {
     console.error(`[Filebase] Failed to delete files for room ${roomId}:`, error);
   }
 }
+
+/**
+ * Delete a single file from Filebase.
+ */
+export async function deleteFile(key) {
+  if (!isConfigured()) return;
+  
+  try {
+    const client = getS3Client();
+    const command = new DeleteObjectsCommand({
+      Bucket: BUCKET,
+      Delete: { Objects: [{ Key: key }] }
+    });
+    
+    await client.send(command);
+    console.log(`[Filebase] Deleted file: ${key}`);
+  } catch (error) {
+    console.error(`[Filebase] Failed to delete file ${key}:`, error);
+    throw error;
+  }
+}

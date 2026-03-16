@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import QRCode from './QRCode';
 import './RoomHeader.css';
 
-export default function RoomHeader({ roomId, isAdmin, userCount }) {
+export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock }) {
   const [copied, setCopied] = useState(false);
   const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
   const roomUrl = `${APP_URL}/room/${roomId}`;
@@ -56,6 +56,11 @@ export default function RoomHeader({ roomId, isAdmin, userCount }) {
       </div>
 
       <div className="room-header__right">
+        {isAdmin && (
+          <button className="btn btn-secondary btn-sm" onClick={onAddBlock}>
+            + Add Block
+          </button>
+        )}
         <div className="room-header__users badge badge-users">
           <span className="room-header__user-dot"></span>
           {userCount} online
@@ -65,3 +70,4 @@ export default function RoomHeader({ roomId, isAdmin, userCount }) {
     </header>
   );
 }
+

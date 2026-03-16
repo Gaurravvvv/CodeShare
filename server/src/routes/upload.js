@@ -72,4 +72,40 @@ router.post('/:id/files', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/rooms/:id/files/:key
+ * Delete a file from Filebase and the room's file list. Admin-only.
+ */
+router.delete('/:id/files/:key(*)', async (req, res) => {
+  try {
+    const { adminToken } = req.query;
+    const { id, key } = req.params;
+
+    if (!adminToken) {
+      return res.status(400).json({ error: 'adminToken is required' });
+    }
+
+    const isAdmin = await roomService.verifyAdmin(id, adminToken);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Unauthorized: invalid admin token' });
+    }
+
+    // 1. Delete from Filebase
+    try {
+      await filebaseService.deleteFile(key);
+    } catch (s3Err) {
+      console.warn(`[Upload] File already missing from S3 or error: ${key}`, s3Err);
+    }
+
+    // 2. Remove from Redis
+    const files = await roomService.removeFile(id, key);
+
+    res.json({ success: true, files });
+  } catch (err) {
+    console.error('[Upload] File deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
+
 export default router;

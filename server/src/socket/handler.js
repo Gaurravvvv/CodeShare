@@ -155,6 +155,22 @@ export function initSocketHandlers(io) {
     });
 
     /**
+     * block-rename: Admin requests to rename a code block.
+     */
+    socket.on('block-rename', async ({ roomId, blockId, name, adminToken }) => {
+      try {
+        if (!adminToken) return;
+        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
+        if (!isAdmin) return;
+
+        await roomService.updateBlockName(roomId, blockId, name);
+        io.to(roomId).emit('block-renamed', { blockId, name });
+      } catch (err) {
+        console.error('[Socket] block-rename error:', err);
+      }
+    });
+
+    /**
      * file-uploaded: Admin notifies that a file was uploaded.
      */
     socket.on('file-uploaded', async ({ roomId, fileData, adminToken }) => {
@@ -176,6 +192,31 @@ export function initSocketHandlers(io) {
         await roomService.resetTTL(roomId);
       } catch (err) {
         console.error('[Socket] file-uploaded error:', err);
+      }
+    });
+
+    /**
+     * file-deleted: Admin notifies that a file was deleted.
+     */
+    socket.on('file-deleted', async ({ roomId, fileKey, adminToken }) => {
+      try {
+        if (!adminToken) {
+          socket.emit('error', { message: 'Admin token required' });
+          return;
+        }
+
+        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
+        if (!isAdmin) {
+          socket.emit('error', { message: 'Unauthorized' });
+          return;
+        }
+
+        // Broadcast file deletion to ALL clients in room
+        io.to(roomId).emit('file-deleted', { fileKey });
+
+        await roomService.resetTTL(roomId);
+      } catch (err) {
+        console.error('[Socket] file-deleted error:', err);
       }
     });
 

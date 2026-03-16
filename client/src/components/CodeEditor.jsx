@@ -54,29 +54,25 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
     <div className="code-editor">
       <div className="code-editor__toolbar">
         <div className="code-editor__toolbar-left">
-          <div className="code-editor__dots">
-            <span className="dot dot--red" onClick={isAdmin && totalBlocks > 1 ? () => onDelete(block.id) : undefined} style={{ cursor: isAdmin && totalBlocks > 1 ? 'pointer' : 'default', opacity: isAdmin && totalBlocks > 1 ? 1 : 0.5 }} title={isAdmin && totalBlocks > 1 ? "Delete block" : ""}></span>
-            <span className="dot dot--yellow"></span>
-            <span className="dot dot--green"></span>
-          </div>
+          <div className="code-editor__file-icon">📄</div>
           <span className="code-editor__title mono">
-            {isAdmin ? 'editor' : 'viewer'}.{block.language || 'js'}
+            {block.name}
           </span>
+          {!isAdmin && <span className="badge badge-viewer">READ ONLY</span>}
         </div>
         <div className="code-editor__toolbar-right">
           {isAdmin && (
-            <select
-              className="code-editor__lang-select"
-              value={block.language}
-              onChange={(e) => onLanguageChange(block.id, e.target.value)}
-            >
-              {LANGUAGES.map((lang) => (
-                <option key={lang} value={lang}>{lang}</option>
-              ))}
-            </select>
-          )}
-          {!isAdmin && (
-            <span className="badge badge-viewer">READ ONLY</span>
+            <div className="code-editor__actions">
+              <select
+                className="code-editor__lang-select"
+                value={block.language}
+                onChange={(e) => onLanguageChange(block.id, e.target.value)}
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang} value={lang}>{lang}</option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
       </div>

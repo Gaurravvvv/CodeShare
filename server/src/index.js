@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors({
   origin: CLIENT_URL,
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'DELETE'],
   credentials: true,
 }));
 app.use(express.json());
@@ -36,7 +36,7 @@ app.use('/api/rooms', uploadRoutes);
 const io = new Server(server, {
   cors: {
     origin: CLIENT_URL,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'DELETE'],
     credentials: true,
   },
 });

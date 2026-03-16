@@ -84,3 +84,16 @@ export async function uploadFileToFilebase(uploadUrl, file) {
     },
   });
 }
+
+/**
+ * Delete a file from the room.
+ * @param {string} roomId
+ * @param {string} fileKey
+ * @param {string} adminToken
+ */
+export async function deleteFile(roomId, fileKey, adminToken) {
+  const { data } = await api.delete(`/rooms/${roomId}/files/${encodeURIComponent(fileKey)}`, {
+    params: { adminToken },
+  });
+  return data;
+}
