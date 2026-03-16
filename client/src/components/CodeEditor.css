@@ -104,7 +104,9 @@
   white-space: pre;
   overflow-wrap: normal;
   overflow-x: auto;
+  overflow-y: auto;
   outline: none;
+  height: 100%;
 }
 
 .code-editor__textarea::placeholder {

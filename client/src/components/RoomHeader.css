@@ -98,11 +98,29 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
+.room-header__exit {
+  margin-left: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+  border: 1px solid var(--danger-border);
+}
+
+.btn-danger:hover {
+  background: var(--danger-hover);
+  border-color: var(--danger);
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .room-header {
     padding: 10px 14px;
     flex-wrap: wrap;
+    height: auto;
   }
 
   .room-header__brand {
@@ -115,5 +133,13 @@
 
   .room-header__room-id {
     font-size: 0.875rem;
+  }
+
+  .room-header__right {
+    width: 100%;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
   }
 }

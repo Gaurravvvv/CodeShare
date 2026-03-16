@@ -203,31 +203,30 @@
 @media (max-width: 900px) {
   .room__body {
     flex-direction: column;
+    overflow-y: auto; /* Enable body scroll on mobile if needed */
   }
 
-  .room__editor {
+  .room__sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .room__main {
     flex: none;
-    height: 50vh;
-    padding: 12px;
-    display: flex;
-    flex-direction: row;
-    overflow-x: auto;
-    gap: 12px;
+    height: 60vh;
+    min-height: 400px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
   }
-
-  .code-block-wrapper {
-    height: 100%;
-    min-width: 320px;
-    flex: 0 0 320px;
-  }
-
 
   .room__files {
     width: 100%;
     flex: 1;
-    padding: 8px;
-    padding-top: 4px;
-    min-height: 0;
+    padding: 12px;
+    min-height: 300px;
   }
 }
 

@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import QRCode from './QRCode';
 import './RoomHeader.css';
 
 export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock }) {
   const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
   const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
   const roomUrl = `${APP_URL}/room/${roomId}`;
 
@@ -24,6 +26,10 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock }) {
       setTimeout(() => setCopied(false), 2000);
     }
   }, [roomId]);
+
+  const handleExit = () => {
+    navigate('/');
+  };
 
   return (
     <header className="room-header">
@@ -66,6 +72,9 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock }) {
           {userCount} online
         </div>
         <QRCode roomUrl={roomUrl} />
+        <button className="btn btn-danger btn-sm room-header__exit" onClick={handleExit} title="Exit Room">
+          Exit Room
+        </button>
       </div>
     </header>
   );
