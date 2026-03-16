@@ -1,0 +1,200 @@
+.landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ─── Scanline Effect ─── */
+.landing__scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.06), transparent);
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ─── Top Bar ─── */
+.landing__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px;
+}
+
+.landing__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.landing__logo {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+}
+
+.landing__app-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+/* ─── Center Content ─── */
+.landing__center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  gap: 24px;
+}
+
+.landing__terminal-header {
+  margin-bottom: 8px;
+}
+
+.landing__terminal-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* ─── Form ─── */
+.landing__form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.landing__input-wrapper {
+  width: 100%;
+  position: relative;
+}
+
+.landing__input {
+  width: 100%;
+  padding: 18px 20px;
+  font-size: 1.75rem;
+  text-align: center;
+  letter-spacing: 0.35em;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--accent);
+  font-weight: 600;
+  transition: all var(--transition-normal);
+}
+
+.landing__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-dim), 0 0 30px rgba(0, 255, 65, 0.1);
+}
+
+.landing__input::placeholder {
+  color: var(--text-muted);
+  letter-spacing: 0.2em;
+  font-weight: 400;
+}
+
+.landing__input-hint {
+  display: block;
+  text-align: center;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.landing__join-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 0.95rem;
+  justify-content: center;
+}
+
+.landing__spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* ─── Error ─── */
+.landing__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--danger-dim);
+  color: var(--danger);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  animation: fadeIn 0.2s ease;
+}
+
+/* ─── Footer ─── */
+.landing__footer-text {
+  font-size: 0.8rem;
+  margin-top: 8px;
+}
+
+/* ─── Bottom ─── */
+.landing__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.landing__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.landing__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .landing__topbar {
+    padding: 16px 20px;
+  }
+
+  .landing__input {
+    padding: 14px 16px;
+    font-size: 1.375rem;
+    letter-spacing: 0.25em;
+  }
+
+  .landing__logo {
+    font-size: 1.25rem;
+  }
+
+  .landing__app-name {
+    font-size: 1rem;
+  }
+}

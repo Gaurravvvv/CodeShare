@@ -1,0 +1,135 @@
+.code-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+
+/* ─── Toolbar ─── */
+.code-editor__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.code-editor__toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.code-editor__toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code-editor__dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dot--red { background: #ff5f57; }
+.dot--yellow { background: #ffbd2e; }
+.dot--green { background: #28c840; }
+
+.code-editor__title {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.code-editor__lang-select {
+  padding: 4px 28px 4px 10px;
+  font-size: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.code-editor__lang-select:focus {
+  border-color: var(--accent);
+}
+
+/* ─── Body ─── */
+.code-editor__body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.code-editor__line-numbers {
+  padding: 16px 0;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  text-align: right;
+  user-select: none;
+  overflow: hidden;
+  min-width: 48px;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.line-number {
+  padding: 0 12px 0 8px;
+  height: 1.6em;
+}
+
+.code-editor__textarea {
+  flex: 1;
+  padding: 16px;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  resize: none;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  outline: none;
+}
+
+.code-editor__textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.code-editor__textarea:read-only {
+  cursor: default;
+  opacity: 0.85;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .code-editor__line-numbers {
+    min-width: 36px;
+  }
+
+  .line-number {
+    padding: 0 8px 0 4px;
+  }
+
+  .code-editor__textarea {
+    padding: 12px;
+    font-size: 0.75rem;
+  }
+}

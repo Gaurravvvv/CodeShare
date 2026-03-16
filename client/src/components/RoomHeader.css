@@ -1,0 +1,119 @@
+.room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.room-header__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.room-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-header__logo {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.room-header__app-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.room-header__divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+
+.room-header__room-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.room-header__room-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.room-header__room-id:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.room-header__copy-icon {
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.room-header__room-id:hover .room-header__copy-icon {
+  color: var(--accent);
+}
+
+.room-header__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.room-header__users {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.room-header__user-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .room-header {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+  }
+
+  .room-header__brand {
+    display: none;
+  }
+
+  .room-header__divider {
+    display: none;
+  }
+
+  .room-header__room-id {
+    font-size: 0.875rem;
+  }
+}

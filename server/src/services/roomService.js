@@ -1,0 +1,193 @@
+import { redis } from '../config/redis.js';
+import { customAlphabet } from 'nanoid';
+import { v4 as uuidv4 } from 'uuid';
+
+const nanoid = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
+const ROOM_TTL = 7200; // 2 hours in seconds
+
+/**
+ * Create a new room with a unique 6-character ID and admin token.
+ */
+export async function createRoom() {
+  let roomId;
+  let exists = true;
+
+  // Ensure unique room ID
+  while (exists) {
+    roomId = nanoid();
+    exists = await redis.exists(`room:${roomId}`);
+  }
+
+  const adminToken = uuidv4();
+
+  const roomData = {
+    adminToken,
+    blocks: JSON.stringify([{
+      id: uuidv4(),
+      code: '',
+      language: 'javascript'
+    }]),
+    files: JSON.stringify([]),
+    createdAt: Date.now().toString(),
+  };
+
+  await redis.hset(`room:${roomId}`, roomData);
+  await redis.expire(`room:${roomId}`, ROOM_TTL);
+
+  return { roomId, adminToken };
+}
+
+/**
+ * Get room data by ID. Returns null if room doesn't exist.
+ */
+export async function getRoom(roomId) {
+  const data = await redis.hgetall(`room:${roomId}`);
+  if (!data || Object.keys(data).length === 0) return null;
+
+  let blocks = [];
+  if (data.blocks) {
+    blocks = JSON.parse(data.blocks);
+  } else if (data.code !== undefined) {
+    blocks = [{
+      id: "legacy-block",
+      code: data.code,
+      language: data.language || 'javascript'
+    }];
+  }
+
+  return {
+    blocks,
+    files: JSON.parse(data.files || '[]'),
+    createdAt: parseInt(data.createdAt || '0'),
+  };
+}
+
+/**
+ * Verify if the provided token matches the room's admin token.
+ */
+export async function verifyAdmin(roomId, token) {
+  const adminToken = await redis.hget(`room:${roomId}`, 'adminToken');
+  return adminToken === token;
+}
+
+/**
+ * Update the code content for a specific block.
+ */
+export async function updateCodeBlock(roomId, blockId, code) {
+  const data = await redis.hgetall(`room:${roomId}`);
+  if (!data || Object.keys(data).length === 0) return;
+  
+  let blocks = [];
+  if (data.blocks) {
+    blocks = JSON.parse(data.blocks);
+  } else if (data.code !== undefined) {
+    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+  }
+
+  const blockIndex = blocks.findIndex(b => b.id === blockId);
+  if (blockIndex !== -1) {
+    blocks[blockIndex].code = code;
+    await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
+    await resetTTL(roomId);
+  }
+}
+
+/**
+ * Update the language for a specific block.
+ */
+export async function updateLanguageBlock(roomId, blockId, language) {
+  const data = await redis.hgetall(`room:${roomId}`);
+  if (!data || Object.keys(data).length === 0) return;
+  
+  let blocks = [];
+  if (data.blocks) {
+    blocks = JSON.parse(data.blocks);
+  } else if (data.code !== undefined) {
+    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+  }
+
+  const blockIndex = blocks.findIndex(b => b.id === blockId);
+  if (blockIndex !== -1) {
+    blocks[blockIndex].language = language;
+    await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
+    await resetTTL(roomId);
+  }
+}
+
+/**
+ * Add a new code block to the room.
+ */
+export async function addCodeBlock(roomId) {
+  const data = await redis.hgetall(`room:${roomId}`);
+  if (!data || Object.keys(data).length === 0) return null;
+  
+  let blocks = [];
+  if (data.blocks) {
+    blocks = JSON.parse(data.blocks);
+  } else if (data.code !== undefined) {
+    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+  }
+  
+  const newBlock = {
+    id: uuidv4(),
+    code: '',
+    language: 'javascript'
+  };
+  
+  blocks.push(newBlock);
+  await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
+  await resetTTL(roomId);
+  
+  return newBlock;
+}
+
+/**
+ * Delete a specific code block from the room.
+ */
+export async function deleteCodeBlock(roomId, blockId) {
+  const data = await redis.hgetall(`room:${roomId}`);
+  if (!data || Object.keys(data).length === 0) return;
+  
+  let blocks = [];
+  if (data.blocks) {
+    blocks = JSON.parse(data.blocks);
+  } else if (data.code !== undefined) {
+    blocks = [{ id: "legacy-block", code: data.code, language: data.language || 'javascript' }];
+  }
+  
+  // Prevent deleting the very last block
+  if (blocks.length <= 1) return;
+  
+  blocks = blocks.filter(b => b.id !== blockId);
+  await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
+  await resetTTL(roomId);
+}
+
+/**
+ * Add a file entry to the room's file list.
+ */
+export async function addFile(roomId, fileData) {
+  const filesRaw = await redis.hget(`room:${roomId}`, 'files');
+  const files = JSON.parse(filesRaw || '[]');
+  files.push({
+    ...fileData,
+    uploadedAt: Date.now(),
+  });
+  await redis.hset(`room:${roomId}`, 'files', JSON.stringify(files));
+  await resetTTL(roomId);
+  return files;
+}
+
+/**
+ * Reset the TTL for a room (called on every interaction).
+ */
+export async function resetTTL(roomId) {
+  await redis.expire(`room:${roomId}`, ROOM_TTL);
+}
+
+/**
+ * Delete a room from Redis.
+ */
+export async function deleteRoom(roomId) {
+  await redis.del(`room:${roomId}`);
+}
