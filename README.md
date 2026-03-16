@@ -2,7 +2,7 @@
 
 CodeShare is a professional, high-performance collaborative code editor and file-sharing platform. It features a modern, VS Code-inspired UI with real-time synchronization, multi-block management, and secure file storage.
 
-![Interface Overview](client/public/screenshot.png) *(Note: Replace with actual screenshot path if available)*
+![Interface Overview](client/public/screenshot.png) 
 
 ## 🚀 Key Features
 
