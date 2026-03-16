@@ -4,8 +4,6 @@
 
 CodeShare is a zero-login, room-based web application that allows multiple users to collaborate on code snippets and share files instantly. Built for scenarios where speed and privacy are paramount, rooms automatically self-destruct after 2 hours of inactivity.
 
-![Capture](https://github.com/user-attachments/assets/ca2d244f-8367-4a0b-9cb7-750e68f3a129)
-
 ---
 
 ## ✨ Features
