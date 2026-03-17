@@ -3,7 +3,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { redisSub } from './config/redis.js';
+import { redisSub } from './config/redis.js'; // Ensure this uses the rediss:// URL
 import { initSocketHandlers } from './socket/handler.js';
 import * as filebaseService from './services/filebaseService.js';
 import roomRoutes from './routes/room.js';
@@ -12,58 +12,68 @@ import uploadRoutes from './routes/upload.js';
 const app = express();
 const server = createServer(app);
 
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-const PORT = process.env.PORT || 3001;
+// RENDER FIX: Always use 0.0.0.0 for host and dynamic PORT from environment
+const ALLOWED_ORIGINS = ['http://localhost:5173', 'http://localhost:5174'];
+if (process.env.FRONTEND_URL) {
+  ALLOWED_ORIGINS.push(process.env.FRONTEND_URL);
+}
+// Optionally keep CLIENT_URL for backward compatibility if it's different
+if (process.env.CLIENT_URL && !ALLOWED_ORIGINS.includes(process.env.CLIENT_URL)) {
+  ALLOWED_ORIGINS.push(process.env.CLIENT_URL);
+}
+
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: CLIENT_URL,
-  methods: ['GET', 'POST', 'DELETE'],
+  origin: ALLOWED_ORIGINS,
+  methods: ['GET', 'POST'],
   credentials: true,
 }));
 app.use(express.json());
 
-// Health check
+// Health check (Crucial for Render to know your app is "Live")
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
 
-// Routes
 app.use('/api/rooms', roomRoutes);
 app.use('/api/rooms', uploadRoutes);
 
-// Socket.io
+// Socket.io Setup
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_URL,
-    methods: ['GET', 'POST', 'DELETE'],
+    origin: ALLOWED_ORIGINS,
+    methods: ['GET', 'POST'],
     credentials: true,
   },
+  // Adding stability for cloud environments
+  pingTimeout: 60000, 
 });
 
 initSocketHandlers(io);
 
-// ─── Redis Keyspace Notifications for TTL Expiry ───────────────────────────────
-// Listen for expired keys to trigger R2 cleanup
+// --- Redis Keyspace Notifications ----------------------------------------------
 async function setupExpiryListener() {
   try {
-    // Subscribe to keyspace events for expired keys
+    // Note: On Upstash, ensure notifications are enabled in their dashboard 
+    // or run: CONFIG SET notify-keyspace-events Ex
     await redisSub.subscribe('__keyevent@0__:expired');
     console.log('[Redis] Subscribed to keyspace expiry notifications');
 
     redisSub.on('message', async (channel, expiredKey) => {
-      // Check if the expired key is a room
       if (expiredKey.startsWith('room:')) {
         const roomId = expiredKey.replace('room:', '');
-        console.log(`[TTL] Room ${roomId} expired. Cleaning up Filebase files...`);
+        console.log(`[TTL] Room ${roomId} expired. Cleaning up Filebase...`);
 
         if (filebaseService.isConfigured()) {
-          await filebaseService.deleteRoomFiles(roomId);
-        } else {
-          console.log(`[TTL] Filebase not configured, skipping file cleanup for room ${roomId}`);
+          try {
+            await filebaseService.deleteRoomFiles(roomId);
+          } catch (err) {
+            console.error(`[TTL] Cleanup failed for ${roomId}:`, err.message);
+          }
         }
 
-        // Notify any connected clients that the room has expired
         io.to(roomId).emit('room-expired', {
           message: 'This room has expired due to inactivity.',
         });
@@ -71,17 +81,15 @@ async function setupExpiryListener() {
     });
   } catch (err) {
     console.error('[Redis] Failed to setup expiry listener:', err.message);
-    console.log('[Redis] Room file cleanup on expiry will not work.');
   }
 }
 
 setupExpiryListener();
 
-// Start server
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n╔══════════════════════════════════════════╗`);
-  console.log(`║   CodeShare Server running on :${PORT}      ║`);
-  console.log(`║   Client URL: ${CLIENT_URL.padEnd(25)} ║`);
-  console.log(`║   [Filebase] Storage: ${process.env.FILEBASE_BUCKET ? 'Configured ✓' : 'Missing Credentials ✗'}${''.padEnd(12)}║`);
+  console.log(`║   Aether Production Server Active        ║`);
+  console.log(`║   Port: ${PORT.toString().padEnd(33)}║`);
+  console.log(`║   Origins Allowed: ${ALLOWED_ORIGINS.length.toString().padEnd(22)}║`);
   console.log(`╚══════════════════════════════════════════╝\n`);
 });

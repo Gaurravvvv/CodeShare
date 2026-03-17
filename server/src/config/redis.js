@@ -1,30 +1,23 @@
 import Redis from 'ioredis';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const redisUrl = process.env.REDIS_URL;
 
-export function createRedisClient(options = {}) {
-  const client = new Redis(REDIS_URL, {
-    maxRetriesPerRequest: 3,
-    retryStrategy(times) {
-      const delay = Math.min(times * 200, 2000);
-      return delay;
-    },
-    ...options,
-  });
+// If REDIS_URL is provided (e.g., Upstash), use it directly. 
+// Otherwise, fallback to the default local configuration.
+export const redisClient = redisUrl ? new Redis(redisUrl) : new Redis({
+  host: '127.0.0.1',
+  port: 6379,
+});
+export const redis = redisClient; // Added to fix backward compatibility back in roomService.js
 
-  client.on('error', (err) => {
-    console.error('[Redis] Connection error:', err.message);
-  });
+export const redisSub = redisUrl ? new Redis(redisUrl) : new Redis({
+  host: '127.0.0.1',
+  port: 6379,
+});
 
-  client.on('connect', () => {
-    console.log('[Redis] Connected to', REDIS_URL.replace(/\/\/.*@/, '//***@'));
-  });
+// Error Handlers
+redisClient.on('error', (err) => console.error('[Redis] Main Client Error:', err));
+redisSub.on('error', (err) => console.error('[Redis] Subscriber Error:', err));
 
-  return client;
-}
-
-// Primary client for read/write
-export const redis = createRedisClient();
-
-// Subscriber client for keyspace notifications (needs separate connection)
-export const redisSub = createRedisClient();
+redisClient.on('connect', () => console.log('[Redis] Main Client Connected ✓'));
+redisSub.on('connect', () => console.log('[Redis] Expiry Subscriber Connected ✓'));
