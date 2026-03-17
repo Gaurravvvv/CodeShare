@@ -27,7 +27,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors({
   origin: ALLOWED_ORIGINS,
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
 }));
 app.use(express.json());
@@ -44,7 +44,7 @@ app.use('/api/rooms', uploadRoutes);
 const io = new Server(server, {
   cors: {
     origin: ALLOWED_ORIGINS,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   },
   // Adding stability for cloud environments
