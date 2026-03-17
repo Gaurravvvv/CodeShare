@@ -4,7 +4,7 @@ const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
-  timeout: 10000,
+  timeout: 60000, // Increased timeout for Render cold start
   headers: {
     'Content-Type': 'application/json',
   },
