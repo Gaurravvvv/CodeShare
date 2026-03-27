@@ -1,16 +1,12 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
+import { VscCopy, VscCheck } from 'react-icons/vsc';
 import './CodeEditor.css';
 
-const LANGUAGES = [
-  'javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp',
-  'go', 'rust', 'ruby', 'php', 'swift', 'kotlin', 'html', 'css',
-  'sql', 'json', 'yaml', 'markdown', 'bash', 'plaintext',
-];
-
-export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, onLanguageChange, onDelete }) {
+export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, onDelete, fileIcon }) {
   const textareaRef = useRef(null);
   const lineNumbersRef = useRef(null);
   const [lineCount, setLineCount] = useState(1);
+  const [copied, setCopied] = useState(false);
   const debounceRef = useRef(null);
 
   // Calculate line numbers
@@ -50,30 +46,33 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
     }
   }, [onCodeChange, block.id]);
 
+  const handleCopy = useCallback(() => {
+    if (block.code) {
+      navigator.clipboard.writeText(block.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [block.code]);
+
   return (
     <div className="code-editor">
       <div className="code-editor__toolbar">
         <div className="code-editor__toolbar-left">
-          <div className="code-editor__file-icon">📄</div>
+          <div className="code-editor__file-icon">{fileIcon || '📄'}</div>
           <span className="code-editor__title mono">
             {block.name}
           </span>
           {!isAdmin && <span className="badge badge-viewer">READ ONLY</span>}
         </div>
         <div className="code-editor__toolbar-right">
-          {isAdmin && (
-            <div className="code-editor__actions">
-              <select
-                className="code-editor__lang-select"
-                value={block.language}
-                onChange={(e) => onLanguageChange(block.id, e.target.value)}
-              >
-                {LANGUAGES.map((lang) => (
-                  <option key={lang} value={lang}>{lang}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <button 
+            className="code-editor__action-btn code-editor__copy-btn" 
+            onClick={handleCopy}
+            title="Copy to clipboard"
+          >
+            {copied ? <VscCheck className="text-success" /> : <VscCopy />}
+            <span className="code-editor__action-text">{copied ? 'Copied!' : 'Copy'}</span>
+          </button>
         </div>
       </div>
       <div className="code-editor__body">

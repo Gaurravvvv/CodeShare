@@ -1,21 +1,23 @@
 import * as roomService from '../services/roomService.js';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Initialize Socket.io event handlers.
  */
 export function initSocketHandlers(io) {
-  // Track connected users per room
+  // Track connected users per room (in-memory for user count)
   const roomUsers = new Map();
 
   io.on('connection', (socket) => {
     console.log(`[Socket] Client connected: ${socket.id}`);
 
     let currentRoom = null;
+    let currentUsername = null;
 
     /**
      * join-room: Client joins a room and receives current state.
      */
-    socket.on('join-room', async ({ roomId, adminToken }) => {
+    socket.on('join-room', async ({ roomId, adminToken, username }) => {
       try {
         const room = await roomService.getRoom(roomId);
         if (!room) {
@@ -26,12 +28,16 @@ export function initSocketHandlers(io) {
         // Join Socket.io room
         socket.join(roomId);
         currentRoom = roomId;
+        currentUsername = username || `User-${socket.id.slice(0, 4)}`;
 
-        // Track user count
+        // Track user count (in-memory)
         if (!roomUsers.has(roomId)) {
           roomUsers.set(roomId, new Set());
         }
         roomUsers.get(roomId).add(socket.id);
+
+        // Store user in Redis Hash for identity tracking
+        await roomService.addUser(roomId, socket.id, currentUsername);
 
         // Verify admin status
         const isAdmin = adminToken
@@ -46,6 +52,15 @@ export function initSocketHandlers(io) {
           userCount: roomUsers.get(roomId).size,
         });
 
+        // Send chat history (last 50 messages)
+        const messages = await roomService.getMessages(roomId, 50);
+        socket.emit('chat-history', { messages });
+
+        // Send active users list to everyone in the room
+        const users = await roomService.getUsers(roomId);
+        const userList = Object.values(users);
+        io.to(roomId).emit('users-updated', { users: userList });
+
         // Broadcast updated user count
         const count = roomUsers.get(roomId)?.size || 0;
         io.to(roomId).emit('user-count', { count });
@@ -53,10 +68,38 @@ export function initSocketHandlers(io) {
         // Reset TTL on join
         await roomService.resetTTL(roomId);
 
-        console.log(`[Socket] ${socket.id} joined room ${roomId} (admin: ${isAdmin})`);
+        console.log(`[Socket] ${currentUsername} (${socket.id}) joined room ${roomId} (admin: ${isAdmin})`);
       } catch (err) {
         console.error('[Socket] join-room error:', err);
         socket.emit('error', { message: 'Failed to join room' });
+      }
+    });
+
+    /**
+     * send-message: User sends a chat message.
+     */
+    socket.on('send-message', async ({ roomId, text, replyTo }) => {
+      try {
+        if (!currentRoom || currentRoom !== roomId) return;
+        if (!text || !text.trim()) return;
+
+        const message = {
+          id: uuidv4(),
+          sender: currentUsername || `User-${socket.id.slice(0, 4)}`,
+          text: text.trim(),
+          replyTo: replyTo || null,
+          timestamp: Date.now(),
+        };
+
+        // Persist to Redis
+        await roomService.addMessage(roomId, message);
+
+        // Broadcast to all clients in room (including sender)
+        io.to(roomId).emit('new-message', { message });
+
+        await roomService.resetTTL(roomId);
+      } catch (err) {
+        console.error('[Socket] send-message error:', err);
       }
     });
 
@@ -128,7 +171,10 @@ export function initSocketHandlers(io) {
         const newBlock = await roomService.addCodeBlock(roomId);
         console.log(`[Socket] Created new block:`, newBlock);
         if (newBlock) {
-          io.to(roomId).emit('block-added', { block: newBlock });
+          // Send to sender with isOwner: true
+          socket.emit('block-added', { block: newBlock, isOwner: true });
+          // Send to others with isOwner: false
+          socket.to(roomId).emit('block-added', { block: newBlock, isOwner: false });
           console.log(`[Socket] Broadcasted new block to room ${roomId}`);
         } else {
           console.log('[Socket] addCodeBlock returned null');
@@ -223,17 +269,30 @@ export function initSocketHandlers(io) {
     /**
      * disconnect: Clean up when client disconnects.
      */
-    socket.on('disconnect', () => {
-      console.log(`[Socket] Client disconnected: ${socket.id}`);
+    socket.on('disconnect', async () => {
+      console.log(`[Socket] Client disconnected: ${socket.id} (${currentUsername})`);
 
-      if (currentRoom && roomUsers.has(currentRoom)) {
-        roomUsers.get(currentRoom).delete(socket.id);
-        const count = roomUsers.get(currentRoom).size;
+      if (currentRoom) {
+        // Remove from Redis users hash
+        try {
+          await roomService.removeUser(currentRoom, socket.id);
+          const users = await roomService.getUsers(currentRoom);
+          const userList = Object.values(users);
+          io.to(currentRoom).emit('users-updated', { users: userList });
+        } catch (err) {
+          console.error('[Socket] disconnect user cleanup error:', err);
+        }
 
-        if (count === 0) {
-          roomUsers.delete(currentRoom);
-        } else {
-          io.to(currentRoom).emit('user-count', { count });
+        // Update in-memory count
+        if (roomUsers.has(currentRoom)) {
+          roomUsers.get(currentRoom).delete(socket.id);
+          const count = roomUsers.get(currentRoom).size;
+
+          if (count === 0) {
+            roomUsers.delete(currentRoom);
+          } else {
+            io.to(currentRoom).emit('user-count', { count });
+          }
         }
       }
     });

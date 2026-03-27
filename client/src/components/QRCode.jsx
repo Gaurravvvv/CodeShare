@@ -11,9 +11,10 @@ export default function QRCode({ roomUrl }) {
         <QRCodeSVG
           value={roomUrl}
           size={42}
-          bgColor="transparent"
-          fgColor="#00ff41"
+          bgColor="#ffffff"
+          fgColor="#000000"
           level="M"
+          includeMargin={true}
         />
       </div>
 
@@ -33,8 +34,8 @@ export default function QRCode({ roomUrl }) {
               <QRCodeSVG
                 value={roomUrl}
                 size={240}
-                bgColor="#121212"
-                fgColor="#00ff41"
+                bgColor="#ffffff"
+                fgColor="#000000"
                 level="H"
                 includeMargin={true}
               />

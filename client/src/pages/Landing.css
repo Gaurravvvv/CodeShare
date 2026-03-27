@@ -198,3 +198,84 @@
     font-size: 1rem;
   }
 }
+
+/* ─── QR Scanner Button ─── */
+.landing__scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  transition: all var(--transition-normal);
+}
+
+.landing__scan-btn:hover {
+  color: var(--accent);
+}
+
+/* ─── Scanner Modal ─── */
+.scanner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  animation: fadeIn 0.3s ease;
+}
+
+.scanner-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 420px;
+  box-shadow: var(--shadow-elevated);
+  overflow: hidden;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scanner-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.scanner-modal__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.scanner-modal__body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scanner-modal__camera {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+}
+
+.scanner-modal__hint {
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.scanner-modal__error {
+  color: var(--danger);
+  font-size: 0.8125rem;
+  text-align: center;
+  padding: 8px;
+  background: var(--danger-dim);
+  border-radius: var(--radius-sm);
+}
+

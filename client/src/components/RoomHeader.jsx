@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { VscMenu } from 'react-icons/vsc';
 import QRCode from './QRCode';
 import './RoomHeader.css';
 
-export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock }) {
+export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock, onToggleMenu, onToggleChat, chatVisible }) {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
   const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
@@ -34,6 +35,9 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock }) {
   return (
     <header className="room-header">
       <div className="room-header__left">
+        <button className="room-header__menu-btn btn btn-icon" onClick={onToggleMenu} title="Toggle Menu">
+          <VscMenu size={20} />
+        </button>
         <div className="room-header__brand">
           <span className="room-header__logo">⟨/⟩</span>
           <span className="room-header__app-name">CodeShare</span>
@@ -72,6 +76,16 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock }) {
           {userCount} online
         </div>
         <QRCode roomUrl={roomUrl} />
+        <button 
+          className={`btn btn-sm ${chatVisible ? 'btn-secondary room-header__chat-active' : 'btn-ghost'}`}
+          onClick={onToggleChat}
+          title={chatVisible ? 'Hide Chat' : 'Show Chat'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Chat
+        </button>
         <button className="btn btn-danger btn-sm room-header__exit" onClick={handleExit} title="Exit Room">
           Exit Room
         </button>

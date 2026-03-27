@@ -59,6 +59,7 @@
 .file-list__items {
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .file-list__item {
@@ -70,6 +71,8 @@
   transition: all var(--transition-fast);
   text-decoration: none;
   color: inherit;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .file-list__item:last-child {
@@ -123,6 +126,8 @@
   display: flex;
   align-items: stretch;
   border-bottom: 1px solid var(--border);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .file-list__item-container:last-child {
@@ -131,6 +136,7 @@
 
 .file-list__item-container .file-list__item {
   flex: 1;
+  min-width: 0;
   border-bottom: none;
 }
 

@@ -49,18 +49,28 @@
   text-overflow: ellipsis;
 }
 
-.code-editor__lang-select {
-  padding: 2px 24px 2px 8px;
-  font-size: 0.7rem;
-  background: var(--bg-tertiary);
+.code-editor__action-btn {
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
-  height: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  transition: all var(--transition-fast);
 }
 
-.code-editor__lang-select:focus {
-  border-color: var(--accent);
+.code-editor__action-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.text-success {
+  color: var(--accent);
 }
 
 /* ─── Body ─── */

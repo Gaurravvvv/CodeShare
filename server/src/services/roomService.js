@@ -226,3 +226,50 @@ export async function resetTTL(roomId) {
 export async function deleteRoom(roomId) {
   await redis.del(`room:${roomId}`);
 }
+
+// ─── User Tracking (Identity) ───────────────────────────────────────────────
+
+/**
+ * Add a user to the room's active users hash.
+ */
+export async function addUser(roomId, socketId, username) {
+  await redis.hset(`room:${roomId}:users`, socketId, username);
+  await redis.expire(`room:${roomId}:users`, ROOM_TTL);
+}
+
+/**
+ * Remove a user from the room's active users hash.
+ */
+export async function removeUser(roomId, socketId) {
+  await redis.hdel(`room:${roomId}:users`, socketId);
+}
+
+/**
+ * Get all active users in a room. Returns { socketId: username } map.
+ */
+export async function getUsers(roomId) {
+  const users = await redis.hgetall(`room:${roomId}:users`);
+  return users || {};
+}
+
+// ─── Chat Message Persistence ───────────────────────────────────────────────
+
+const MAX_MESSAGES = 200;
+
+/**
+ * Add a chat message to the room's message list (newest first).
+ */
+export async function addMessage(roomId, message) {
+  await redis.lpush(`room:${roomId}:messages`, JSON.stringify(message));
+  await redis.ltrim(`room:${roomId}:messages`, 0, MAX_MESSAGES - 1);
+  await redis.expire(`room:${roomId}:messages`, ROOM_TTL);
+}
+
+/**
+ * Get the most recent messages for a room (returns oldest-first order).
+ */
+export async function getMessages(roomId, count = 50) {
+  const raw = await redis.lrange(`room:${roomId}:messages`, 0, count - 1);
+  // lrange returns newest-first (since we lpush), reverse for chronological order
+  return raw.map(m => JSON.parse(m)).reverse();
+}

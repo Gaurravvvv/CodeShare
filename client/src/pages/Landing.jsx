@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createRoom, getRoom } from '../utils/api';
 import './Landing.css';
@@ -7,6 +7,10 @@ export default function Landing() {
   const [roomId, setRoomId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const scannerRef = useRef(null);
+  const scannerInstanceRef = useRef(null);
   const navigate = useNavigate();
 
   const handleJoinRoom = useCallback(async (e) => {
@@ -54,6 +58,81 @@ export default function Landing() {
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
     setRoomId(value);
     setError('');
+  }, []);
+
+  // Extract room ID from a scanned URL
+  const extractRoomId = useCallback((text) => {
+    // Match patterns like /room/ABCDEF or room/ABCDEF
+    const match = text.match(/\/room\/([A-Za-z0-9]{4,6})/);
+    if (match) return match[1].toUpperCase();
+    // Also accept a raw 6-char code
+    const raw = text.trim().toUpperCase();
+    if (/^[A-Z0-9]{4,6}$/.test(raw)) return raw;
+    return null;
+  }, []);
+
+  // Open QR scanner
+  const openScanner = useCallback(async () => {
+    setScannerOpen(true);
+    setScanError('');
+
+    // Dynamic import to avoid SSR issues
+    setTimeout(async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        
+        if (!scannerRef.current) return;
+
+        const scanner = new Html5Qrcode('qr-scanner-view');
+        scannerInstanceRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          (decodedText) => {
+            const id = extractRoomId(decodedText);
+            if (id) {
+              // Stop scanner first
+              scanner.stop().catch(() => {});
+              scannerInstanceRef.current = null;
+              setScannerOpen(false);
+              navigate(`/room/${id}`);
+            }
+          },
+          () => {} // ignore errors on each scan attempt
+        );
+      } catch (err) {
+        console.error('[QR Scanner] Error:', err);
+        setScanError(
+          err.toString().includes('NotAllowedError')
+            ? 'Camera access denied. Please allow camera permissions.'
+            : 'Could not start camera. Try on a mobile device.'
+        );
+      }
+    }, 100);
+  }, [extractRoomId, navigate]);
+
+  // Close scanner
+  const closeScanner = useCallback(() => {
+    if (scannerInstanceRef.current) {
+      scannerInstanceRef.current.stop().catch(() => {});
+      scannerInstanceRef.current = null;
+    }
+    setScannerOpen(false);
+    setScanError('');
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerInstanceRef.current) {
+        scannerInstanceRef.current.stop().catch(() => {});
+      }
+    };
   }, []);
 
   return (
@@ -120,6 +199,17 @@ export default function Landing() {
           </button>
         </form>
 
+        {/* Scan to Join button */}
+        <button className="btn btn-ghost landing__scan-btn" onClick={openScanner}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+          </svg>
+          Scan QR to Join
+        </button>
+
         {error && (
           <div className="landing__error">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -143,6 +233,34 @@ export default function Landing() {
           system ready
         </span>
       </div>
+
+      {/* QR Scanner Modal */}
+      {scannerOpen && (
+        <div className="scanner-overlay" onClick={closeScanner}>
+          <div className="scanner-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="scanner-modal__header">
+              <h3 className="scanner-modal__title">Scan QR Code</h3>
+              <button className="btn-icon" onClick={closeScanner}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="scanner-modal__body">
+              <div id="qr-scanner-view" ref={scannerRef} className="scanner-modal__camera"></div>
+              <p className="scanner-modal__hint mono text-muted">
+                Point your camera at a CodeShare room QR code
+              </p>
+              {scanError && (
+                <div className="scanner-modal__error">
+                  {scanError}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,7 +7,7 @@ const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
  * Custom hook for managing Socket.io connection.
  * Returns socket instance and helper functions.
  */
-export function useSocket(roomId, adminToken) {
+export function useSocket(roomId, adminToken, username) {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export function useSocket(roomId, adminToken) {
 
     newSocket.on('connect', () => {
       console.log('[Socket] Connected:', newSocket.id);
-      newSocket.emit('join-room', { roomId, adminToken });
+      newSocket.emit('join-room', { roomId, adminToken, username });
     });
 
     newSocket.on('disconnect', (reason) => {
@@ -39,7 +39,7 @@ export function useSocket(roomId, adminToken) {
       newSocket.disconnect();
       setSocket(null);
     };
-  }, [roomId, adminToken]);
+  }, [roomId, adminToken, username]);
 
   const emit = useCallback((event, data) => {
     if (socket?.connected) {
@@ -49,3 +49,4 @@ export function useSocket(roomId, adminToken) {
 
   return { socket, emit };
 }
+
