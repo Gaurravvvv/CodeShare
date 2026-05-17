@@ -8,28 +8,33 @@ CodeShare is a high-performance, real-time collaborative code editor and file-sh
 
 ```mermaid
 graph TD
-    subgraph Frontend [Client - React / Vite]
-        UI[IDE Interface & Chat]
+    subgraph Frontend ["Client - React / Vite"]
+        UI[IDE Interface]
         Editor[Multi-Block Code Editor]
+        Chat[Full-Screen Chat Toggle]
         FileMan[File Manager]
         SocketClient[Socket.IO Client]
         
         UI --> Editor
+        UI --> Chat
         UI --> FileMan
         Editor <--> SocketClient
+        Chat <--> SocketClient
         FileMan -->|Direct S3 Upload| Storage[(Filebase / S3)]
     end
 
-    subgraph Backend [Server - Node.js / Express]
+    subgraph Backend ["Server - Node.js / Express"]
         API[Express REST API]
+        CronCleanup[Cron Cleanup Endpoint]
         SocketServer[Socket.IO Server]
         RoomService[Room & TTL Manager]
         
         API --> RoomService
+        CronCleanup --> RoomService
         SocketServer <--> RoomService
     end
 
-    subgraph State & Storage
+    subgraph Storage_Layer ["State & Storage"]
         Redis[(Redis - Room State & Chat)]
         Storage
     end
@@ -37,20 +42,24 @@ graph TD
     SocketClient <-->|WebSockets| SocketServer
     UI <-->|HTTP Pre-signed URLs| API
     RoomService <-->|State & TTL| Redis
+    CronCleanup -->|Delete Orphans| Storage
 ```
 
 ![Interface Overview](client/public/screenshot.png) 
 
 ## 🚀 Key Features & How They Work
 
-- **VS Code-Style Interface**: A professional three-column layout featuring a left-side Explorer, a central Active Editor, and a right-side File Management & Chat pane.
+- **VS Code-Style Interface**: A clean two-panel layout with a left-side Explorer and a central Active Editor, plus a toggleable right-side File Management pane. Fully responsive for mobile, tablet, and split-screen windows.
+- **Full-Screen Chat Toggle**: Chat and Code views share the same main viewport — click the toggle button in the header to seamlessly switch between them. No awkward side panels.
+- **Unread Message Notifications**: When you're in the editor and someone sends a chat message, a live notification badge with unread count pops up on the Chat button so you never miss a message.
 - **Collaborative Multi-Block Editing**: Create multiple code files (blocks) within a single room. Each block synchronizes code changes in real-time across all connected clients via Socket.IO.
 - **Smart Language Detection**: Changing the file extension in the explorer (e.g., `script.js` → `script.py`) automatically updates the editor's syntax highlighting for that specific language block.
 - **Admin Access Control**: The user who creates the room is granted Admin privileges via a secure, persistent token. Only Admins can rename blocks, add/delete code blocks, or upload files to prevent griefing.
-- **Secure File Sharing**: Full integration with **Filebase (S3-compatible object storage)**. Upload and manage shared assets using secure, pre-signed URLs.
-- **Live Room Chat & Presence**: Track active users with a live online count and participate in real-time room chat. Chat messages are synchronized and persisted in Redis.
-- **Auto-Destruct & Cleanup**: Privacy by design. Rooms have a TTL (Time-To-Live). After an extended period of inactivity, Redis triggers a keyspace expiration event that automatically cleans up the room's state in the database and triggers a webhook to delete all associated files from Filebase.
+- **Secure File Sharing**: Full integration with **Filebase (S3-compatible object storage)**. Upload and manage shared assets using secure, pre-signed URLs. The file list is scrollable when many files are uploaded.
+- **Live Room Chat & Presence**: Track active users with a live online count and participate in real-time room chat with rich mentions (`@user`, `#code-file`, `$media`). Chat messages are synchronized and persisted in Redis.
+- **Auto-Destruct & Cron Cleanup**: Privacy by design. Rooms have a TTL (Time-To-Live). Redis keyspace events trigger automatic cleanup. A dedicated **cron endpoint** (`POST /api/rooms/cron/cleanup`) reconciles orphaned S3 files against Redis, ensuring nothing is left behind even if the server was asleep during expiration.
 - **Full Dockerization**: One-command setup with healthchecks, volumes for hot-reloading, and orchestrated service startup across Frontend, Backend, and Redis.
+- **Mobile Responsive**: The entire UI gracefully adapts to mobile screens and narrow split-screen windows with proper breakpoints at 1024px, 768px, and 480px.
 
 ## 🏗️ Architecture & Tech Stack
 
@@ -84,10 +93,12 @@ CodeShare is built on a modern JavaScript ecosystem, prioritizing speed, real-ti
 
 ### Prerequisites
 
-- **Docker** and **Docker Compose** (Highly Recommended for easiest setup)
-- OR **Node.js (v20+)** and a local **Redis** instance (v7+).
+- **Docker Desktop** (for Redis container)
+- **Node.js (v20+)**
 
-### Option 1: Run with Docker (Recommended)
+### Option 1: Quick Start with `run.bat` (Windows)
+
+The project includes a `run.bat` file that starts everything in one click:
 
 1. **Clone the repository**:
    ```bash
@@ -95,38 +106,36 @@ CodeShare is built on a modern JavaScript ecosystem, prioritizing speed, real-ti
    cd CodeShare
    ```
 
-2. **Environment Variables Setup**:
-   Copy `.env.example` (if available) or create `.env` files in both the `client/` and `server/` directories. See the **Environment Variables** section below.
+2. **Setup environment variables** (see below).
 
-3. **Start Services**:
-   ```bash
-   docker-compose up --build
-   ```
-   *Docker Compose will start Redis, the Node Backend, and the React Frontend. It handles network bridging and volume mapping automatically.*
-   
-   The app will be available at `http://localhost:5173`.
+3. **Double-click `run.bat`** — it will:
+   - Start a Redis container via Docker (auto-creates if not exists)
+   - Launch the Backend dev server (port 3001)
+   - Launch the Frontend dev server (port 5173)
 
-### Option 2: Run Manually (Local Development)
+### Option 2: Run with Docker Compose
+
+```bash
+docker-compose up --build
+```
+*Starts Redis, Backend, and Frontend. App available at `http://localhost:5173`.*
+
+### Option 3: Run Manually
 
 1. **Start Redis**:
-   Ensure you have a Redis server running locally on port `6379`.
-   *Note: For room auto-cleanup to work, ensure keyspace events are enabled in Redis (`redis-cli config set notify-keyspace-events Ex`).*
-
-2. **Install Backend Dependencies & Run**:
    ```bash
-   cd server
-   npm install
-   npm run dev
+   docker run -d --name codeshare-redis -p 6379:6379 redis:7-alpine
    ```
-   *Runs on port 3001.*
 
-3. **Install Frontend Dependencies & Run**:
+2. **Backend**:
    ```bash
-   cd client
-   npm install
-   npm run dev
+   cd server && npm install && npm run dev
    ```
-   *Runs on port 5173.*
+
+3. **Frontend**:
+   ```bash
+   cd client && npm install && npm run dev
+   ```
 
 ## ⚙️ Environment Variables
 
@@ -162,12 +171,13 @@ Create this file in the `client/` directory.
 
 ```text
 CodeShare/
+├── run.bat                 # One-click dev launcher (Redis + Backend + Frontend)
 ├── client/                 # React Frontend (Vite)
 │   ├── public/             # Static assets (Favicon, Screenshots)
 │   ├── src/
-│   │   ├── components/     # Reusable UI components (ChatPanel, CodeEditor, FileList)
+│   │   ├── components/     # UI: ChatPanel, CodeEditor, FileList, RoomHeader
 │   │   ├── hooks/          # Custom React hooks (useSocket.js)
-│   │   ├── pages/          # Main views (Landing.jsx, Room.jsx)
+│   │   ├── pages/          # Landing.jsx, Room.jsx (+ CSS)
 │   │   ├── utils/          # API helpers and Axios instances
 │   │   └── App.jsx         # App routing
 │   ├── Dockerfile
@@ -175,8 +185,8 @@ CodeShare/
 ├── server/                 # Node.js Backend
 │   ├── src/
 │   │   ├── config/         # Redis connection config
-│   │   ├── routes/         # Express REST routes (Rooms, Upload presigning)
-│   │   ├── services/       # Business logic (Redis queries, Filebase S3 operations)
+│   │   ├── routes/         # REST routes (Rooms, Upload, Cron Cleanup)
+│   │   ├── services/       # roomService, filebaseService (S3 + orphan cleanup)
 │   │   ├── socket/         # Socket.io event handlers
 │   │   └── index.js        # Server entry point
 │   ├── Dockerfile

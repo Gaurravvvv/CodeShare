@@ -4,7 +4,7 @@ import { VscMenu } from 'react-icons/vsc';
 import QRCode from './QRCode';
 import './RoomHeader.css';
 
-export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock, onToggleMenu, onToggleChat, chatVisible }) {
+export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock, onToggleMenu, onToggleChat, chatVisible, unreadCount = 0 }) {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
   const APP_URL = import.meta.env.VITE_APP_URL || window.location.origin;
@@ -77,14 +77,31 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock, onT
         </div>
         <QRCode roomUrl={roomUrl} />
         <button 
-          className={`btn btn-sm ${chatVisible ? 'btn-secondary room-header__chat-active' : 'btn-ghost'}`}
+          className={`btn btn-sm room-header__toggle-btn ${chatVisible ? 'room-header__toggle-btn--chat' : 'room-header__toggle-btn--code'}`}
           onClick={onToggleChat}
-          title={chatVisible ? 'Hide Chat' : 'Show Chat'}
+          title={chatVisible ? 'Back to Editor' : 'Open Chat'}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          Chat
+          {chatVisible ? (
+            /* Show "Code" icon + label when chat is active */
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+              <span className="room-header__toggle-label">Code</span>
+            </>
+          ) : (
+            /* Show "Chat" icon + label when editor is active */
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span className="room-header__toggle-label">Chat</span>
+              {unreadCount > 0 && (
+                <span className="room-header__unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              )}
+            </>
+          )}
         </button>
         <button className="btn btn-danger btn-sm room-header__exit" onClick={handleExit} title="Exit Room">
           Exit Room

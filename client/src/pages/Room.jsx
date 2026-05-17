@@ -86,8 +86,11 @@ export default function Room() {
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [activeUsers, setActiveUsers] = useState([]);
-  const [chatVisible, setChatVisible] = useState(true);
-  const [chatFocused, setChatFocused] = useState(false);
+
+  // View toggle: false = editor view, true = chat view
+  const [chatMode, setChatMode] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const chatModeRef = useRef(false);
 
   const isLocalChange = useRef(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -183,6 +186,7 @@ export default function Room() {
       if (data.isOwner) {
         setActiveBlockId(data.block.id);
         setIsMobileMenuOpen(false);
+        setChatMode(false); // Switch to editor on new block
       }
     };
 
@@ -216,7 +220,13 @@ export default function Room() {
     const onError = (data) => showToast(data.message, 'error');
 
     const onChatHistory = (data) => setChatMessages(data.messages || []);
-    const onNewMessage = (data) => setChatMessages(prev => [...prev, data.message]);
+    const onNewMessage = (data) => {
+      setChatMessages(prev => [...prev, data.message]);
+      // Increment unread count if user is NOT viewing chat
+      if (!chatModeRef.current) {
+        setUnreadCount(prev => prev + 1);
+      }
+    };
     const onUsersUpdated = (data) => setActiveUsers(data.users || []);
 
     socket.on('room-state', onRoomState);
@@ -319,7 +329,7 @@ export default function Room() {
     const block = blocks.find(b => b.name.toLowerCase() === filename.toLowerCase());
     if (block) {
       setActiveBlockId(block.id);
-      setChatFocused(false); // Switch back to editor
+      setChatMode(false); // Switch back to editor
       showToast(`Switched to ${block.name}`, 'success');
     } else {
       showToast(`File "${filename}" not found in code blocks`, 'error');
@@ -343,20 +353,6 @@ export default function Room() {
 
   const activeBlock = blocks.find(b => b.id === activeBlockId);
 
-  // Shared ChatPanel element
-  const chatPanel = (
-    <ChatPanel
-      messages={chatMessages}
-      activeUsers={activeUsers}
-      files={files}
-      blocks={blocks}
-      username={username}
-      roomId={roomId}
-      onSendMessage={handleSendMessage}
-      onFileClick={handleFileClick}
-    />
-  );
-
   return (
     <div className="room">
       {showUsernameModal && <UsernameModal onSubmit={handleUsernameSubmit} />}
@@ -367,13 +363,19 @@ export default function Room() {
         userCount={userCount} 
         onAddBlock={handleAddBlock} 
         onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        onToggleChat={() => setChatVisible(!chatVisible)}
-        chatVisible={chatVisible}
+        onToggleChat={() => {
+          const next = !chatMode;
+          setChatMode(next);
+          chatModeRef.current = next;
+          if (next) setUnreadCount(0);
+        }}
+        chatVisible={chatMode}
+        unreadCount={unreadCount}
       />
 
-      <div className={`room__body ${isMobileMenuOpen ? 'room__body--mobile-open' : ''} ${chatFocused ? 'room__body--chat-focused' : ''}`}>
-        {/* Left Sidebar */}
-        {!chatFocused && (
+      <div className={`room__body ${isMobileMenuOpen ? 'room__body--mobile-open' : ''} ${chatMode ? 'room__body--chat-mode' : ''}`}>
+        {/* Left Sidebar — hidden in chat mode */}
+        {!chatMode && (
           <aside className="room__sidebar">
             <div className="sidebar-section">
               <div className="sidebar-section__header">
@@ -439,8 +441,8 @@ export default function Room() {
 
         {/* Main Workspace */}
         <main className="room__main">
-          {chatFocused ? (
-            /* Chat Full View — replaces editor */
+          {chatMode ? (
+            /* Full Chat View — replaces entire editor area */
             <div className="room__chat-full">
               <div className="room__chat-full-header">
                 <div className="room__chat-full-title">
@@ -450,14 +452,17 @@ export default function Room() {
                   <span>Room Chat</span>
                   <span className="chat-user-count mono">{activeUsers.length} online</span>
                 </div>
-                <button className="btn btn-secondary btn-sm" onClick={() => setChatFocused(false)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="15 18 9 12 15 6" />
-                  </svg>
-                  Back to Editor
-                </button>
               </div>
-              {chatPanel}
+              <ChatPanel
+                messages={chatMessages}
+                activeUsers={activeUsers}
+                files={files}
+                blocks={blocks}
+                username={username}
+                roomId={roomId}
+                onSendMessage={handleSendMessage}
+                onFileClick={handleFileClick}
+              />
             </div>
           ) : activeBlock ? (
             <div className="room__editor-container">
@@ -476,40 +481,18 @@ export default function Room() {
           )}
         </main>
 
-        {/* Right Sidebar: Files + Chat (only when not chat-focused) */}
-        {!chatFocused && (
+        {/* Right Sidebar: Files only — hidden in chat mode */}
+        {!chatMode && (
           <aside className="room__files">
-            <div className="sidebar-section">
+            <div className="sidebar-section sidebar-section--files">
               <div className="sidebar-section__header">
                 <span>SHARED FILES</span>
               </div>
               <FileZone isAdmin={isAdmin} onFileUpload={handleFileUpload} uploading={uploading} />
-              <FileList files={files} isAdmin={isAdmin} onDelete={handleFileDelete} />
-            </div>
-
-            {chatVisible && (
-              <div className="room__chat-section">
-                <div className="sidebar-section__header">
-                  <span>ROOM CHAT</span>
-                  <div className="room__chat-header-actions">
-                    <span className="chat-user-count mono">{activeUsers.length} online</span>
-                    <button 
-                      className="explorer-action-btn" 
-                      onClick={() => setChatFocused(true)}
-                      title="Expand Chat"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="15 3 21 3 21 9" />
-                        <polyline points="9 21 3 21 3 15" />
-                        <line x1="21" y1="3" x2="14" y2="10" />
-                        <line x1="3" y1="21" x2="10" y2="14" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                {chatPanel}
+              <div className="room__files-scroll">
+                <FileList files={files} isAdmin={isAdmin} onDelete={handleFileDelete} />
               </div>
-            )}
+            </div>
           </aside>
         )}
       </div>
