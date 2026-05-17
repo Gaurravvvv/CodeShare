@@ -127,3 +127,56 @@ export async function deleteFile(key) {
     throw error;
   }
 }
+
+/**
+ * Cron Job: Find and delete all S3 folders for rooms that no longer exist in Redis.
+ */
+export async function cleanupOrphanedFiles(checkRoomExistsFn) {
+  if (!isConfigured()) {
+    console.log('[Cron] Skip cleanup: Filebase not configured');
+    return { status: 'skipped', reason: 'not configured' };
+  }
+
+  try {
+    const client = getS3Client();
+    // Use Delimiter '/' to group keys by folder (e.g. rooms/ABCDEF/)
+    const command = new ListObjectsV2Command({
+      Bucket: BUCKET,
+      Prefix: 'rooms/',
+      Delimiter: '/'
+    });
+
+    const response = await client.send(command);
+    
+    if (!response.CommonPrefixes || response.CommonPrefixes.length === 0) {
+      console.log('[Cron] No active room folders found in Filebase.');
+      return { status: 'success', deletedRooms: 0 };
+    }
+
+    let deletedCount = 0;
+
+    for (const prefixObj of response.CommonPrefixes) {
+      const folderPrefix = prefixObj.Prefix; // e.g., "rooms/ABCDEF/"
+      const roomId = folderPrefix.split('/')[1];
+
+      if (!roomId) continue;
+
+      // Check if room is still active in Redis
+      const exists = await checkRoomExistsFn(roomId);
+      
+      if (!exists) {
+        console.log(`[Cron] Room ${roomId} is orphaned (not in Redis). Cleaning up S3...`);
+        // Note: deleteRoomFiles is already defined above and deletes all files with Prefix: rooms/roomId/
+        await deleteRoomFiles(roomId);
+        deletedCount++;
+      }
+    }
+
+    console.log(`[Cron] Cleanup complete. Deleted ${deletedCount} orphaned room folders.`);
+    return { status: 'success', deletedRooms: deletedCount };
+
+  } catch (error) {
+    console.error('[Cron] Error during orphaned files cleanup:', error);
+    throw error;
+  }
+}

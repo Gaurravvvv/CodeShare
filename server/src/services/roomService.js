@@ -64,6 +64,14 @@ export async function getRoom(roomId) {
 }
 
 /**
+ * Fast check if a room exists (does not reset TTL or fetch data).
+ */
+export async function roomExists(roomId) {
+  const exists = await redis.exists(`room:${roomId}`);
+  return exists === 1;
+}
+
+/**
  * Verify if the provided token matches the room's admin token.
  */
 export async function verifyAdmin(roomId, token) {
