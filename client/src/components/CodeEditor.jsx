@@ -2,7 +2,9 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import { VscCopy, VscCheck } from 'react-icons/vsc';
 import './CodeEditor.css';
 
-export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, onDelete, fileIcon }) {
+export default function CodeEditor({ block, isAdmin, socketId, onCodeChange, onDelete, fileIcon }) {
+  const isOwner = block.ownerId === socketId;
+  const canEdit = isAdmin || isOwner;
   const textareaRef = useRef(null);
   const lineNumbersRef = useRef(null);
   const [lineCount, setLineCount] = useState(1);
@@ -24,6 +26,7 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState('');
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summarizedCode, setSummarizedCode] = useState(null); // Track code that was summarized
 
   // Calculate line numbers
   useEffect(() => {
@@ -75,8 +78,14 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
 
   const handleSummarize = useCallback(async () => {
     if (!block.code || !block.code.trim()) return;
-    // Toggle if already have summary
-    if (summary) { setSummaryOpen(prev => !prev); return; }
+    
+    // Toggle open/close if we already have a summary AND the code hasn't changed
+    if (summary && summarizedCode === block.code) { 
+      setSummaryOpen(prev => !prev); 
+      return; 
+    }
+    
+    // Otherwise, fetch a fresh summary
     setSummaryOpen(true);
     setSummaryLoading(true);
     setSummaryError('');
@@ -90,12 +99,13 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Summarization failed');
       setSummary(data);
+      setSummarizedCode(block.code);
     } catch (err) {
       setSummaryError(err.message || 'Could not generate summary');
     } finally {
       setSummaryLoading(false);
     }
-  }, [block.code, block.name, summary]);
+  }, [block.code, block.name, summary, summarizedCode]);
 
   return (
     <div className="code-editor">
@@ -105,7 +115,7 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
           <span className="code-editor__title mono">
             {block.name}
           </span>
-          {!isAdmin && <span className="badge badge-viewer">READ ONLY</span>}
+          {!canEdit && <span className="badge badge-readonly">READ ONLY</span>}
         </div>
         <div className="code-editor__toolbar-right">
           <button
@@ -118,14 +128,25 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
             </svg>
             <span className="code-editor__action-text">Summarize</span>
           </button>
-          <button 
-            className="code-editor__action-btn code-editor__copy-btn" 
-            onClick={handleCopy}
-            title="Copy to clipboard"
-          >
-            {copied ? <VscCheck className="text-success" /> : <VscCopy />}
-            <span className="code-editor__action-text">{copied ? 'Copied!' : 'Copy'}</span>
-          </button>
+          <div className="code-editor__tab-actions">
+            {isOwner && <span className="owner-badge">You</span>}
+            <button 
+              className="code-editor__action-btn code-editor__copy-btn" 
+              onClick={handleCopy}
+              title="Copy to clipboard"
+            >
+              {copied ? <VscCheck className="text-success" /> : <VscCopy />}
+              <span className="code-editor__action-text">{copied ? 'Copied!' : 'Copy'}</span>
+            </button>
+            {canEdit && (
+              <button className="code-editor__action-btn code-editor__action-btn--delete" onClick={() => onDelete(block.id)} title="Delete Block">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                <span className="code-editor__action-text">Delete</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {/* AI Summary Panel */}
@@ -173,9 +194,9 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
           value={localCode}
           onChange={handleChange}
           onScroll={handleScroll}
-          onKeyDown={isAdmin ? handleKeyDown : undefined}
-          readOnly={!isAdmin}
-          placeholder={isAdmin ? '// Start typing your code here...' : '// Waiting for admin to share code...'}
+          onKeyDown={canEdit ? handleKeyDown : undefined}
+          readOnly={!canEdit}
+          placeholder={canEdit ? '// Start typing your code here...' : '// View-only mode...'}
           spellCheck={false}
           autoComplete="off"
           autoCorrect="off"

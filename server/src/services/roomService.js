@@ -26,9 +26,11 @@ export async function createRoom() {
       id: uuidv4(),
       name: 'main.js',
       code: '',
-      language: 'javascript'
+      language: 'javascript',
+      ownerId: null
     }]),
     files: JSON.stringify([]),
+    joinOrder: JSON.stringify([]),
     createdAt: Date.now().toString(),
   };
 
@@ -80,6 +82,15 @@ export async function verifyAdmin(roomId, token) {
 }
 
 /**
+ * Get the current host (the oldest user in the room).
+ */
+export async function getHost(roomId) {
+  const joinOrderRaw = await redis.hget(`room:${roomId}`, 'joinOrder');
+  const joinOrder = joinOrderRaw ? JSON.parse(joinOrderRaw) : [];
+  return joinOrder.length > 0 ? joinOrder[0] : null;
+}
+
+/**
  * Update the code content for a specific block.
  */
 export async function updateCodeBlock(roomId, blockId, code) {
@@ -126,7 +137,7 @@ export async function updateLanguageBlock(roomId, blockId, language) {
 /**
  * Add a new code block to the room.
  */
-export async function addCodeBlock(roomId) {
+export async function addCodeBlock(roomId, ownerId) {
   const data = await redis.hgetall(`room:${roomId}`);
   if (!data || Object.keys(data).length === 0) return null;
   
@@ -141,7 +152,8 @@ export async function addCodeBlock(roomId) {
     id: uuidv4(),
     name: `untitled-${blocks.length}.js`,
     code: '',
-    language: 'javascript'
+    language: 'javascript',
+    ownerId
   };
   
   blocks.push(newBlock);
@@ -196,12 +208,13 @@ export async function updateBlockName(roomId, blockId, name) {
 /**
  * Add a file entry to the room's file list.
  */
-export async function addFile(roomId, fileData) {
+export async function addFile(roomId, fileData, ownerId) {
   const filesRaw = await redis.hget(`room:${roomId}`, 'files');
   const files = JSON.parse(filesRaw || '[]');
   files.push({
     ...fileData,
     uploadedAt: Date.now(),
+    ownerId,
   });
   await redis.hset(`room:${roomId}`, 'files', JSON.stringify(files));
   await resetTTL(roomId);
@@ -242,14 +255,77 @@ export async function deleteRoom(roomId) {
  */
 export async function addUser(roomId, socketId, username) {
   await redis.hset(`room:${roomId}:users`, socketId, username);
+  
+  // Track join order for ownership transfer
+  const joinOrderRaw = await redis.hget(`room:${roomId}`, 'joinOrder');
+  let joinOrder = joinOrderRaw ? JSON.parse(joinOrderRaw) : [];
+  if (!joinOrder.includes(socketId)) {
+    joinOrder.push(socketId);
+    await redis.hset(`room:${roomId}`, 'joinOrder', JSON.stringify(joinOrder));
+  }
+
+  // If this is the ONLY user in the room, they inherit all orphaned resources
+  let transferred = false;
+  if (joinOrder.length === 1) {
+    const data = await redis.hgetall(`room:${roomId}`);
+    let blocks = data.blocks ? JSON.parse(data.blocks) : [];
+    let files = data.files ? JSON.parse(data.files) : [];
+    let changed = false;
+
+    blocks.forEach(b => {
+      if (b.ownerId !== socketId) { b.ownerId = socketId; changed = true; }
+    });
+    files.forEach(f => {
+      if (f.ownerId !== socketId) { f.ownerId = socketId; changed = true; }
+    });
+
+    if (changed) {
+      await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
+      await redis.hset(`room:${roomId}`, 'files', JSON.stringify(files));
+      transferred = true;
+    }
+  }
+
   await redis.expire(`room:${roomId}:users`, ROOM_TTL);
+  return transferred;
 }
 
 /**
- * Remove a user from the room's active users hash.
+ * Remove a user from the room's active users hash and transfer ownership if needed.
  */
 export async function removeUser(roomId, socketId) {
   await redis.hdel(`room:${roomId}:users`, socketId);
+  
+  // Manage joinOrder and ownership transfer
+  const joinOrderRaw = await redis.hget(`room:${roomId}`, 'joinOrder');
+  let joinOrder = joinOrderRaw ? JSON.parse(joinOrderRaw) : [];
+  joinOrder = joinOrder.filter(id => id !== socketId);
+  await redis.hset(`room:${roomId}`, 'joinOrder', JSON.stringify(joinOrder));
+
+  let nextOwner = joinOrder.length > 0 ? joinOrder[0] : null;
+  let transferred = false;
+
+  if (nextOwner) {
+    const data = await redis.hgetall(`room:${roomId}`);
+    let blocks = data.blocks ? JSON.parse(data.blocks) : [];
+    let files = data.files ? JSON.parse(data.files) : [];
+    let changed = false;
+
+    blocks.forEach(b => {
+      if (b.ownerId === socketId) { b.ownerId = nextOwner; changed = true; }
+    });
+    files.forEach(f => {
+      if (f.ownerId === socketId) { f.ownerId = nextOwner; changed = true; }
+    });
+
+    if (changed) {
+      await redis.hset(`room:${roomId}`, 'blocks', JSON.stringify(blocks));
+      await redis.hset(`room:${roomId}`, 'files', JSON.stringify(files));
+      transferred = true;
+    }
+  }
+
+  return { nextOwner, transferred };
 }
 
 /**

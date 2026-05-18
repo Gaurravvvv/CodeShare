@@ -58,23 +58,21 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock, onT
             </svg>
           </button>
           {isAdmin ? (
-            <span className="badge badge-admin" title="Admin">★<span className="room-header__badge-text"> ADMIN</span></span>
+            <span className="badge badge-admin" title="Host">★<span className="room-header__badge-text"> HOST</span></span>
           ) : (
-            <span className="badge badge-viewer" title="Viewer">👁<span className="room-header__badge-text"> VIEWER</span></span>
+            <span className="badge badge-member" title="Member">👤<span className="room-header__badge-text"> MEMBER</span></span>
           )}
         </div>
       </div>
 
       <div className="room-header__right">
-        {isAdmin && (
-          <button className="btn btn-secondary btn-sm room-header__add-btn" onClick={onAddBlock} title="Add Block">
-            <svg className="room-header__add-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            <span className="room-header__add-text">+ Add Block</span>
-          </button>
-        )}
+        <button className="btn btn-secondary btn-sm room-header__add-btn" onClick={onAddBlock} title="Add Block">
+          <svg className="room-header__add-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span className="room-header__add-text">+ Add Block</span>
+        </button>
         <div className="room-header__users badge badge-users">
           <span className="room-header__user-dot"></span>
           {userCount} online

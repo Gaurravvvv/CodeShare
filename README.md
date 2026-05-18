@@ -1,6 +1,6 @@
 # CodeShare (Aether) — Real-Time Collaborative Workspace
 
-CodeShare is a high-performance, real-time collaborative code editor and file-sharing platform designed for seamless pair programming, interviews, and remote team collaboration. Featuring a professional, VS Code-inspired UI, it supports synchronized multi-file editing, instant messaging, and secure file sharing with auto-destruct capabilities for privacy.
+CodeShare is a high-performance, real-time collaborative code editor and file-sharing platform designed for seamless pair programming, interviews, and remote team collaboration. Featuring a professional, VS Code-inspired UI, it supports synchronized multi-file editing, instant messaging, resource-level ownership, and secure file sharing with auto-destruct capabilities for privacy.
 
 🌍 **Live Demo:** [https://codesharre.vercel.app](https://codesharre.vercel.app)
 
@@ -35,7 +35,7 @@ graph TD
     end
 
     subgraph Storage_Layer ["State & Storage"]
-        Redis[(Redis - Room State & Chat)]
+        Redis[(Redis - Room State, Chat & Ownership)]
         Storage
     end
 
@@ -54,7 +54,9 @@ graph TD
 - **Unread Message Notifications**: When you're in the editor and someone sends a chat message, a live notification badge with unread count pops up on the Chat button so you never miss a message.
 - **Collaborative Multi-Block Editing**: Create multiple code files (blocks) within a single room. Each block synchronizes code changes in real-time across all connected clients via Socket.IO.
 - **Smart Language Detection**: Changing the file extension in the explorer (e.g., `script.js` → `script.py`) automatically updates the editor's syntax highlighting for that specific language block.
-- **Admin Access Control**: The user who creates the room is granted Admin privileges via a secure, persistent token. Only Admins can rename blocks, add/delete code blocks, or upload files to prevent griefing.
+- **Resource-Level Ownership**: Every user can add code blocks and upload files. Each resource tracks its `ownerId` — only the owner or the current Host can edit/delete it. Non-owners see a **READ ONLY** badge and have action buttons hidden. A **"You"** badge marks your own resources in the Explorer and File List.
+- **Dynamic Host System**: The longest-staying user in the room is automatically the **Host** (★ HOST badge). Hosts can edit/delete any resource. When the Host leaves, the role seamlessly transfers to the next longest-staying user via the `host-updated` event — no page refresh needed. If the original creator rejoins later, they enter as a regular **Member** (👤 MEMBER badge) with no special privileges.
+- **Ownership Transfer on Disconnect**: When any user disconnects, all their resources (code blocks and files) are automatically transferred to the current Host. If the room is empty when a new user joins, they inherit all orphaned resources.
 - **Secure File Sharing & In-Browser Preview**: Full integration with **Filebase (S3-compatible object storage)**. Upload and manage shared assets using secure, pre-signed URLs. The file list is scrollable when many files are uploaded. Click the 👁 **View** button to preview files directly in the browser! Supports images, video, audio, PDFs, spreadsheets (XLSX/CSV), GitHub-flavored Markdown (.md), and even PowerPoint presentations (PPTX) via backend LibreOffice conversion.
 - **AI Code Analysis Agent**: Click the ✨ **Summarize** button on any file or inline code block to run it through our AI Agent powered by **Groq (Llama 3)**. For code files, it generates a high-level summary *and* actively detects bugs, typos, and security vulnerabilities (flagged as warnings). For standard documents (PDF, DOCX, XLSX, PPTX) and plain text, it provides a concise paragraph summary. All AI responses use structured JSON parsing and are cached in Redis for 1 hour for instant retrieval without hitting API limits.
 - **Live Room Chat & Presence**: Track active users with a live online count and participate in real-time room chat with rich mentions (`@user`, `#code-file`, `$media`). Chat messages are synchronized and persisted in Redis.
@@ -80,7 +82,9 @@ CodeShare is built on a modern JavaScript ecosystem, prioritizing speed, real-ti
 ### 3. State & Database (Redis)
 - **Library**: `ioredis`
 - **Usage**: Redis acts as the single source of truth for the active application state. It stores:
-  - Room data (code blocks, connected users).
+  - Room data (code blocks with `ownerId`, connected users).
+  - `joinOrder` array for dynamic Host role assignment and ownership transfer.
+  - User identity hash (`room:{id}:users`) for accurate user counting.
   - Chat history.
   - TTL (Time-To-Live) keys to manage room expiration.
 - **Why?**: Redis is an in-memory data store, making it incredibly fast. This is crucial when syncing keystrokes across multiple users in milliseconds. It also natively supports keyspace notifications used for the auto-destruct feature.

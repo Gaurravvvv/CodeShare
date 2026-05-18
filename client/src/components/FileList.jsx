@@ -36,7 +36,7 @@ function canSummarize(name) {
   return supported.includes(ext);
 }
 
-export default function FileList({ files, isAdmin, onDelete }) {
+export default function FileList({ files, isAdmin, socketId, onDelete }) {
   const [previewFile, setPreviewFile] = useState(null);
   const [activeSummaryKey, setActiveSummaryKey] = useState(null);
   // Cache summaries so re-opening is instant
@@ -107,6 +107,8 @@ export default function FileList({ files, isAdmin, onDelete }) {
           const isOpen = activeSummaryKey === file.key;
           const isLoading = loadingKey === file.key;
           const hasError = errorKey === file.key;
+          const isOwner = file.ownerId === socketId;
+          const canEdit = isAdmin || isOwner;
 
           return (
             <div key={file.key} className="file-list__entry">
@@ -122,7 +124,10 @@ export default function FileList({ files, isAdmin, onDelete }) {
                 >
                   <span className="file-list__icon">{getFileIcon(file.name)}</span>
                   <div className="file-list__info">
-                    <span className="file-list__name mono">{file.name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="file-list__name mono">{file.name}</span>
+                      {isOwner && <span className="owner-badge">You</span>}
+                    </div>
                     <span className="file-list__size">{formatFileSize(file.size)}</span>
                   </div>
                   <svg className="file-list__download" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -148,7 +153,7 @@ export default function FileList({ files, isAdmin, onDelete }) {
                     onClick={() => handleSummarize(file)}
                   />
                 )}
-                {isAdmin && (
+                {canEdit && (
                   <button
                     className="file-list__delete-btn"
                     onClick={(e) => { e.stopPropagation(); onDelete(file.key); }}

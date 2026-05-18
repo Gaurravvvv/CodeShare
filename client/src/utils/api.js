@@ -64,9 +64,9 @@ export async function getUploadUrl(roomId, filename, fileType, adminToken) {
  * @param {string} adminToken
  * @returns {{ files: Array }}
  */
-export async function registerFile(roomId, fileData, adminToken) {
+export async function registerFile(roomId, fileData, socketId) {
   const { data } = await api.post(`/rooms/${roomId}/files`, {
-    adminToken,
+    socketId,
     ...fileData,
   });
   return data;
@@ -91,9 +91,9 @@ export async function uploadFileToFilebase(uploadUrl, file) {
  * @param {string} fileKey
  * @param {string} adminToken
  */
-export async function deleteFile(roomId, fileKey, adminToken) {
+export async function deleteFile(roomId, fileKey, adminToken, socketId) {
   const { data } = await api.delete(`/rooms/${roomId}/files/${encodeURIComponent(fileKey)}`, {
-    params: { adminToken },
+    params: { adminToken, socketId },
   });
   return data;
 }

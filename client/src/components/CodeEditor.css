@@ -8,6 +8,17 @@
   background: var(--bg-secondary);
 }
 
+.badge-readonly {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
 /* ─── Toolbar ─── */
 .code-editor__toolbar {
   display: flex;
@@ -243,4 +254,31 @@
     padding: 12px;
     font-size: 0.75rem;
   }
+
+  .code-editor__action-text {
+    display: none;
+  }
+
+  .code-editor__action-btn {
+    padding: 4px 6px;
+  }
+}
+
+/* ─── Tab Actions Group ─── */
+.code-editor__tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── Delete Button ─── */
+.code-editor__action-btn--delete {
+  color: var(--danger, #ef4444);
+  border-color: var(--danger-border, rgba(239, 68, 68, 0.3));
+}
+
+.code-editor__action-btn--delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: #ef4444;
 }

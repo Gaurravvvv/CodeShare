@@ -69,6 +69,7 @@ export default function Room() {
   const [blocks, setBlocks] = useState([]);
   const [files, setFiles] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hostId, setHostId] = useState(null);
   const [adminToken, setAdminToken] = useState('');
   const [userCount, setUserCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -94,6 +95,7 @@ export default function Room() {
 
   const isLocalChange = useRef(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mySocketId, setMySocketId] = useState(null);
 
   // Check for admin token in localStorage
   useEffect(() => {
@@ -167,7 +169,9 @@ export default function Room() {
         }
       }
       setFiles(data.files || []);
-      setIsAdmin(prev => (prev || data.isAdmin) ? true : false);
+      setIsAdmin(data.isAdmin);
+      if (data.hostId) setHostId(data.hostId);
+      if (data.socketId) setMySocketId(data.socketId);
       if (data.userCount !== undefined) setUserCount(data.userCount);
     };
 
@@ -228,8 +232,19 @@ export default function Room() {
       }
     };
     const onUsersUpdated = (data) => setActiveUsers(data.users || []);
+    
+    const onOwnershipTransferred = (data) => {
+      setBlocks(data.blocks || []);
+      setFiles(data.files || []);
+      showToast('Resource ownership transferred', 'success');
+    };
+
+    const onHostUpdated = ({ hostId }) => {
+      setHostId(hostId);
+    };
 
     socket.on('room-state', onRoomState);
+    socket.on('host-updated', onHostUpdated);
     socket.on('code-updated', onCodeUpdated);
     socket.on('language-changed', onLanguageChanged);
     socket.on('block-added', onBlockAdded);
@@ -243,6 +258,7 @@ export default function Room() {
     socket.on('chat-history', onChatHistory);
     socket.on('new-message', onNewMessage);
     socket.on('users-updated', onUsersUpdated);
+    socket.on('ownership-transferred', onOwnershipTransferred);
 
     return () => {
       socket.off('room-state', onRoomState);
@@ -259,6 +275,7 @@ export default function Room() {
       socket.off('chat-history', onChatHistory);
       socket.off('new-message', onNewMessage);
       socket.off('users-updated', onUsersUpdated);
+      socket.off('ownership-transferred', onOwnershipTransferred);
     };
   }, [socket, activeBlockId]);
 
@@ -270,17 +287,15 @@ export default function Room() {
   }, [roomId, adminToken, emit]);
 
   const handleAddBlock = useCallback(() => {
-    if (!isAdmin || !adminToken) return;
     emit('block-added', { roomId, adminToken });
-  }, [roomId, adminToken, emit, isAdmin]);
+  }, [roomId, adminToken, emit]);
 
   const handleDeleteBlock = useCallback((blockId) => {
-    if (!isAdmin || !adminToken) return;
     emit('block-deleted', { roomId, blockId, adminToken });
-  }, [roomId, adminToken, emit, isAdmin]);
+  }, [roomId, adminToken, emit]);
 
   const handleRenameBlock = useCallback((blockId, newName) => {
-    if (!isAdmin || !adminToken || !newName.trim()) {
+    if (!newName.trim()) {
       setEditingBlockId(null);
       return;
     }
@@ -293,13 +308,12 @@ export default function Room() {
   }, [roomId, adminToken, emit, isAdmin]);
 
   const handleFileUpload = useCallback(async (file) => {
-    if (!isAdmin || !adminToken) return;
     setUploading(true);
     try {
       const { uploadUrl, fileKey, downloadUrl } = await getUploadUrl(roomId, file.name, file.type, adminToken);
       await uploadFileToFilebase(uploadUrl, file);
       const fileData = { name: file.name, size: file.size, key: fileKey, downloadUrl };
-      await registerFile(roomId, fileData, adminToken);
+      await registerFile(roomId, fileData, mySocketId || socket?.id);
       emit('file-uploaded', { roomId, fileData, adminToken });
       showToast(`"${file.name}" uploaded successfully`, 'success');
     } catch (err) {
@@ -310,9 +324,8 @@ export default function Room() {
   }, [roomId, adminToken, isAdmin, emit]);
 
   const handleFileDelete = useCallback(async (fileKey) => {
-    if (!isAdmin || !adminToken) return;
     try {
-      await deleteFile(roomId, fileKey, adminToken);
+      await deleteFile(roomId, fileKey, adminToken, mySocketId || socket?.id);
       emit('file-deleted', { roomId, fileKey, adminToken });
       showToast('File deleted successfully', 'success');
     } catch (err) {
@@ -352,6 +365,7 @@ export default function Room() {
   if (expired) return <div className="room-error"><div className="room-error__icon" style={{ color: 'var(--warning)' }}>⏱</div><h2 className="room-error__title">Room Expired</h2><p className="room-error__text">Room auto-destructed after inactivity.</p><button className="btn btn-primary" onClick={() => navigate('/')}>← Back Home</button></div>;
 
   const activeBlock = blocks.find(b => b.id === activeBlockId);
+  const effectiveIsAdmin = isAdmin || (mySocketId && mySocketId === hostId);
 
   return (
     <div className="room">
@@ -359,7 +373,7 @@ export default function Room() {
 
       <RoomHeader 
         roomId={roomId} 
-        isAdmin={isAdmin} 
+        isAdmin={effectiveIsAdmin} 
         userCount={userCount} 
         onAddBlock={handleAddBlock} 
         onToggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -380,18 +394,16 @@ export default function Room() {
             <div className="sidebar-section">
               <div className="sidebar-section__header">
                 <span>EXPLORER: CODE BLOCKS</span>
-                {isAdmin && (
-                  <button className="explorer-action-btn" onClick={handleAddBlock} title="New Block">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  </button>
-                )}
+                <button className="explorer-action-btn" onClick={handleAddBlock} title="New Block">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
               </div>
               <div className="sidebar-list">
                 {blocks.map((block) => (
                   <div 
                     key={block.id} 
                     className={`explorer-item ${activeBlockId === block.id ? 'explorer-item--active' : ''}`}
-                    onClick={() => setActiveBlockId(block.id)}
+                    onClick={() => { setActiveBlockId(block.id); setIsMobileMenuOpen(false); }}
                   >
                     <span className="explorer-item__icon" style={{display: 'flex', alignItems:'center', justifyContent:'center'}}>
                       {getFileIcon(block.name)}
@@ -412,7 +424,8 @@ export default function Room() {
                     ) : (
                       <span className="explorer-item__name mono">{block.name}</span>
                     )}
-                    {isAdmin && (
+                    {block.ownerId === (mySocketId || socket?.id) && <span className="owner-badge">You</span>}
+                    {(effectiveIsAdmin || block.ownerId === (mySocketId || socket?.id)) && (
                       <div className="explorer-item__actions">
                         <button 
                           className="explorer-action-btn" 
@@ -468,7 +481,8 @@ export default function Room() {
             <div className="room__editor-container">
               <CodeEditor
                 block={activeBlock}
-                isAdmin={isAdmin}
+                isAdmin={effectiveIsAdmin}
+                socketId={mySocketId || socket?.id}
                 onCodeChange={handleCodeChange}
                 onDelete={handleDeleteBlock}
                 fileIcon={getFileIcon(activeBlock.name)}
@@ -488,9 +502,9 @@ export default function Room() {
               <div className="sidebar-section__header">
                 <span>SHARED FILES</span>
               </div>
-              <FileZone isAdmin={isAdmin} onFileUpload={handleFileUpload} uploading={uploading} />
+              <FileZone isAdmin={effectiveIsAdmin} onFileUpload={handleFileUpload} uploading={uploading} />
               <div className="room__files-scroll">
-                <FileList files={files} isAdmin={isAdmin} onDelete={handleFileDelete} />
+                <FileList files={files} isAdmin={effectiveIsAdmin} socketId={mySocketId || socket?.id} onDelete={handleFileDelete} />
               </div>
             </div>
           </aside>

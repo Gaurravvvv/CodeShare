@@ -16,14 +16,8 @@ router.post('/:id/upload-url', async (req, res) => {
     console.log(`[Upload] Requesting URL for ${filename} | Type: ${fileType}`);
 
     // STRICT VALIDATION: Force the frontend to provide the fileType
-    if (!adminToken || !filename || !fileType) {
-      return res.status(400).json({ error: 'adminToken, filename, and fileType are required' });
-    }
-
-    // Verify admin
-    const isAdmin = await roomService.verifyAdmin(req.params.id, adminToken);
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Unauthorized: invalid admin token' });
+    if (!filename || !fileType) {
+      return res.status(400).json({ error: 'filename and fileType are required' });
     }
 
     // Check if Storage is configured
@@ -52,18 +46,13 @@ router.post('/:id/upload-url', async (req, res) => {
  */
 router.post('/:id/files', async (req, res) => {
   try {
-    const { adminToken, name, size, key, downloadUrl } = req.body;
+    const { socketId, name, size, key, downloadUrl } = req.body;
 
-    if (!adminToken || !name) {
-      return res.status(400).json({ error: 'adminToken and file data are required' });
+    if (!name) {
+      return res.status(400).json({ error: 'file data is required' });
     }
 
-    const isAdmin = await roomService.verifyAdmin(req.params.id, adminToken);
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Unauthorized: invalid admin token' });
-    }
-
-    const files = await roomService.addFile(req.params.id, { name, size, key, downloadUrl });
+    const files = await roomService.addFile(req.params.id, { name, size, key, downloadUrl }, socketId);
 
     res.json({ files });
   } catch (err) {
@@ -78,16 +67,18 @@ router.post('/:id/files', async (req, res) => {
  */
 router.delete('/:id/files/:key(*)', async (req, res) => {
   try {
-    const { adminToken } = req.query;
+    const { adminToken, socketId } = req.query;
     const { id, key } = req.params;
 
-    if (!adminToken) {
-      return res.status(400).json({ error: 'adminToken is required' });
-    }
-
-    const isAdmin = await roomService.verifyAdmin(id, adminToken);
+    const hostId = await roomService.getHost(id);
+    const isAdmin = (socketId === hostId);
+    
     if (!isAdmin) {
-      return res.status(403).json({ error: 'Unauthorized: invalid admin token' });
+      const room = await roomService.getRoom(id);
+      const file = room?.files?.find(f => f.key === key);
+      if (!file || file.ownerId !== socketId) {
+        return res.status(403).json({ error: 'Permission denied: You do not own this file' });
+      }
     }
 
     // 1. Delete from Filebase

@@ -133,15 +133,17 @@ router.post('/', async (req, res) => {
     : `summary:${fileName}:${fileUrl.split('?')[0]}`;
 
   try {
-    // 1. Check Redis cache
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      console.log(`[Summarize] Cache hit for ${fileName}`);
-      try {
-        const parsed = JSON.parse(cached);
-        return res.json(parsed);
-      } catch (err) {
-        return res.json({ summary: cached, warnings: [] });
+    // 1. Check Redis cache (skip for inline code blocks)
+    if (!inlineCode) {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        console.log(`[Summarize] Cache hit for ${fileName}`);
+        try {
+          const parsed = JSON.parse(cached);
+          return res.json(parsed);
+        } catch (err) {
+          return res.json({ summary: cached, warnings: [] });
+        }
       }
     }
 
@@ -189,7 +191,7 @@ router.post('/', async (req, res) => {
     // 5. Choose the right prompt based on file type
     const isCode = isCodeFile(ext);
     const prompt = isCode
-      ? `Analyze the following code and return a JSON object with exactly two fields:
+      ? `Analyze the following ${ext.toUpperCase()} code and return a JSON object with exactly two fields:
 1. "summary" - one short paragraph explaining what this code does
 2. "warnings" - an array of strings, each describing a potential error, bug, or security issue found in the code. If no issues found, return an empty array.
 Return only raw JSON. No markdown, no explanation, no extra text.`
@@ -238,9 +240,11 @@ Return only raw JSON. No markdown, no explanation, no extra text.`
       result = { summary: groqResponse, warnings: [] };
     }
 
-    // 7. Cache in Redis
-    await redis.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL);
-    console.log(`[Summarize] Cached summary for ${fileName}`);
+    // 7. Cache in Redis (skip for inline code blocks)
+    if (!inlineCode) {
+      await redis.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL);
+      console.log(`[Summarize] Cached summary for ${fileName}`);
+    }
 
     res.json(result);
   } catch (err) {

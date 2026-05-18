@@ -1,6 +1,24 @@
 import * as roomService from '../services/roomService.js';
 import { v4 as uuidv4 } from 'uuid';
 
+async function checkPermission(roomId, adminToken, socketId, resourceType, resourceId) {
+  const hostId = await roomService.getHost(roomId);
+  const isAdmin = (socketId === hostId);
+  if (isAdmin) return true;
+  
+  const room = await roomService.getRoom(roomId);
+  if (!room) return false;
+
+  if (resourceType === 'block') {
+    const block = room.blocks.find(b => b.id === resourceId);
+    if (block && block.ownerId === socketId) return true;
+  } else if (resourceType === 'file') {
+    const file = room.files.find(f => f.key === resourceId);
+    if (file && file.ownerId === socketId) return true;
+  }
+  return false;
+}
+
 /**
  * Initialize Socket.io event handlers.
  */
@@ -37,19 +55,33 @@ export function initSocketHandlers(io) {
         roomUsers.get(roomId).add(socket.id);
 
         // Store user in Redis Hash for identity tracking
-        await roomService.addUser(roomId, socket.id, currentUsername);
+        const transferred = await roomService.addUser(roomId, socket.id, currentUsername);
+        
+        // Always re-read from Redis after addUser — ownership may have been updated
+        const freshRoom = await roomService.getRoom(roomId);
+        const roomStateBlocks = freshRoom.blocks;
+        const roomStateFiles = freshRoom.files;
+        
+        if (transferred) {
+          socket.to(roomId).emit('ownership-transferred', { blocks: roomStateBlocks, files: roomStateFiles });
+        }
 
-        // Verify admin status
-        const isAdmin = adminToken
-          ? await roomService.verifyAdmin(roomId, adminToken)
-          : false;
+        // Derive user count from Redis (source of truth)
+        const allUsers = await roomService.getUsers(roomId);
+        const userCount = Object.keys(allUsers).length;
+
+        // Verify admin/host status
+        const hostId = await roomService.getHost(roomId);
+        const isAdmin = (socket.id === hostId);
 
         // Send current room state
         socket.emit('room-state', {
-          blocks: room.blocks,
-          files: room.files,
+          blocks: roomStateBlocks,
+          files: roomStateFiles,
           isAdmin,
-          userCount: roomUsers.get(roomId).size,
+          socketId: socket.id,
+          hostId,
+          userCount,
         });
 
         // Send chat history (last 50 messages)
@@ -61,9 +93,11 @@ export function initSocketHandlers(io) {
         const userList = Object.values(users);
         io.to(roomId).emit('users-updated', { users: userList });
 
-        // Broadcast updated user count
-        const count = roomUsers.get(roomId)?.size || 0;
-        io.to(roomId).emit('user-count', { count });
+        // Broadcast updated user count from Redis
+        io.to(roomId).emit('user-count', { count: userCount });
+
+        // Broadcast current host
+        io.to(roomId).emit('host-updated', { hostId });
 
         // Reset TTL on join
         await roomService.resetTTL(roomId);
@@ -108,14 +142,9 @@ export function initSocketHandlers(io) {
      */
     socket.on('code-update', async ({ roomId, blockId, code, adminToken }) => {
       try {
-        if (!adminToken) {
-          socket.emit('error', { message: 'Admin token required' });
-          return;
-        }
-
-        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
-        if (!isAdmin) {
-          socket.emit('error', { message: 'Unauthorized' });
+        const hasPerm = await checkPermission(roomId, adminToken, socket.id, 'block', blockId);
+        if (!hasPerm) {
+          socket.emit('error', { message: 'Permission denied: You do not own this block' });
           return;
         }
 
@@ -134,14 +163,9 @@ export function initSocketHandlers(io) {
      */
     socket.on('language-change', async ({ roomId, blockId, language, adminToken }) => {
       try {
-        if (!adminToken) {
-          socket.emit('error', { message: 'Admin token required' });
-          return;
-        }
-
-        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
-        if (!isAdmin) {
-          socket.emit('error', { message: 'Unauthorized' });
+        const hasPerm = await checkPermission(roomId, adminToken, socket.id, 'block', blockId);
+        if (!hasPerm) {
+          socket.emit('error', { message: 'Permission denied: You do not own this block' });
           return;
         }
 
@@ -158,17 +182,7 @@ export function initSocketHandlers(io) {
     socket.on('block-added', async ({ roomId, adminToken }) => {
       console.log(`[Socket] Received block-added request for room ${roomId}`);
       try {
-        if (!adminToken) {
-          console.log('[Socket] No adminToken provided');
-          return;
-        }
-        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
-        if (!isAdmin) {
-          console.log('[Socket] verifyAdmin failed');
-          return;
-        }
-
-        const newBlock = await roomService.addCodeBlock(roomId);
+        const newBlock = await roomService.addCodeBlock(roomId, socket.id);
         console.log(`[Socket] Created new block:`, newBlock);
         if (newBlock) {
           // Send to sender with isOwner: true
@@ -189,9 +203,11 @@ export function initSocketHandlers(io) {
      */
     socket.on('block-deleted', async ({ roomId, blockId, adminToken }) => {
       try {
-        if (!adminToken) return;
-        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
-        if (!isAdmin) return;
+        const hasPerm = await checkPermission(roomId, adminToken, socket.id, 'block', blockId);
+        if (!hasPerm) {
+          socket.emit('error', { message: 'Permission denied: You do not own this block' });
+          return;
+        }
 
         await roomService.deleteCodeBlock(roomId, blockId);
         io.to(roomId).emit('block-deleted', { blockId });
@@ -205,9 +221,11 @@ export function initSocketHandlers(io) {
      */
     socket.on('block-rename', async ({ roomId, blockId, name, adminToken }) => {
       try {
-        if (!adminToken) return;
-        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
-        if (!isAdmin) return;
+        const hasPerm = await checkPermission(roomId, adminToken, socket.id, 'block', blockId);
+        if (!hasPerm) {
+          socket.emit('error', { message: 'Permission denied: You do not own this block' });
+          return;
+        }
 
         await roomService.updateBlockName(roomId, blockId, name);
         io.to(roomId).emit('block-renamed', { blockId, name });
@@ -221,19 +239,13 @@ export function initSocketHandlers(io) {
      */
     socket.on('file-uploaded', async ({ roomId, fileData, adminToken }) => {
       try {
-        if (!adminToken) {
-          socket.emit('error', { message: 'Admin token required' });
-          return;
-        }
+        // Any user can upload now, no admin check required here
 
-        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
-        if (!isAdmin) {
-          socket.emit('error', { message: 'Unauthorized' });
-          return;
-        }
+        // Inject ownerId so all clients see correct ownership
+        const enrichedFileData = { ...fileData, ownerId: socket.id };
 
         // Broadcast new file to ALL clients in room (including sender for confirmation)
-        io.to(roomId).emit('file-added', { fileData });
+        io.to(roomId).emit('file-added', { fileData: enrichedFileData });
 
         await roomService.resetTTL(roomId);
       } catch (err) {
@@ -246,14 +258,9 @@ export function initSocketHandlers(io) {
      */
     socket.on('file-deleted', async ({ roomId, fileKey, adminToken }) => {
       try {
-        if (!adminToken) {
-          socket.emit('error', { message: 'Admin token required' });
-          return;
-        }
-
-        const isAdmin = await roomService.verifyAdmin(roomId, adminToken);
-        if (!isAdmin) {
-          socket.emit('error', { message: 'Unauthorized' });
+        const hasPerm = await checkPermission(roomId, adminToken, socket.id, 'file', fileKey);
+        if (!hasPerm) {
+          socket.emit('error', { message: 'Permission denied: You do not own this file' });
           return;
         }
 
@@ -275,24 +282,32 @@ export function initSocketHandlers(io) {
       if (currentRoom) {
         // Remove from Redis users hash
         try {
-          await roomService.removeUser(currentRoom, socket.id);
+          const { nextOwner, transferred } = await roomService.removeUser(currentRoom, socket.id);
           const users = await roomService.getUsers(currentRoom);
           const userList = Object.values(users);
           io.to(currentRoom).emit('users-updated', { users: userList });
+          
+          if (nextOwner) {
+            io.to(currentRoom).emit('host-updated', { hostId: nextOwner });
+          }
+
+          if (transferred) {
+            const room = await roomService.getRoom(currentRoom);
+            if (room) {
+              io.to(currentRoom).emit('ownership-transferred', { blocks: room.blocks, files: room.files });
+            }
+          }
         } catch (err) {
           console.error('[Socket] disconnect user cleanup error:', err);
         }
 
-        // Update in-memory count
-        if (roomUsers.has(currentRoom)) {
-          roomUsers.get(currentRoom).delete(socket.id);
-          const count = roomUsers.get(currentRoom).size;
-
-          if (count === 0) {
-            roomUsers.delete(currentRoom);
-          } else {
-            io.to(currentRoom).emit('user-count', { count });
-          }
+        // Update user count from Redis (source of truth)
+        const allUsers = await roomService.getUsers(currentRoom);
+        const count = Object.keys(allUsers).length;
+        if (count === 0) {
+          roomUsers.delete(currentRoom);
+        } else {
+          io.to(currentRoom).emit('user-count', { count });
         }
       }
     });

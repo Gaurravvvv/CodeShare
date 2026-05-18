@@ -19,19 +19,18 @@ export default function FileZone({ isAdmin, onFileUpload, uploading }) {
   }, []);
 
   const handleFiles = useCallback((files) => {
-    if (!isAdmin) return;
     Array.from(files).forEach((file) => {
       if (validateFile(file)) {
         onFileUpload(file);
       }
     });
-  }, [isAdmin, onFileUpload, validateFile]);
+  }, [onFileUpload, validateFile]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isAdmin) setIsDragOver(true);
-  }, [isAdmin]);
+    setIsDragOver(true);
+  }, []);
 
   const handleDragLeave = useCallback((e) => {
     e.preventDefault();
@@ -43,16 +42,16 @@ export default function FileZone({ isAdmin, onFileUpload, uploading }) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
-    if (isAdmin && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.files.length > 0) {
       handleFiles(e.dataTransfer.files);
     }
-  }, [isAdmin, handleFiles]);
+  }, [handleFiles]);
 
   const handleClick = useCallback(() => {
-    if (isAdmin && fileInputRef.current) {
+    if (fileInputRef.current) {
       fileInputRef.current.click();
     }
-  }, [isAdmin]);
+  }, []);
 
   const handleInputChange = useCallback((e) => {
     if (e.target.files.length > 0) {
@@ -64,7 +63,7 @@ export default function FileZone({ isAdmin, onFileUpload, uploading }) {
   return (
     <div className="file-zone-wrapper">
       <div
-        className={`file-zone ${isDragOver ? 'file-zone--drag-over' : ''} ${!isAdmin ? 'file-zone--disabled' : ''} ${uploading ? 'file-zone--uploading' : ''}`}
+        className={`file-zone ${isDragOver ? 'file-zone--drag-over' : ''} ${uploading ? 'file-zone--uploading' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -76,7 +75,6 @@ export default function FileZone({ isAdmin, onFileUpload, uploading }) {
           className="file-zone__input"
           onChange={handleInputChange}
           multiple
-          disabled={!isAdmin}
         />
 
         <div className="file-zone__content">
@@ -95,7 +93,7 @@ export default function FileZone({ isAdmin, onFileUpload, uploading }) {
                 </svg>
               </div>
               <p className="file-zone__text">
-                {isAdmin ? 'Drop files here or click to upload' : 'File uploads (admin only)'}
+                Drop files here or click to upload
               </p>
               <p className="file-zone__limit">Maximum file size: 20 MB</p>
             </>
