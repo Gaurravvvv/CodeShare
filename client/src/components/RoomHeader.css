@@ -112,6 +112,20 @@
   margin-left: 8px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-header__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-header__add-icon,
+.room-header__exit-icon {
+  display: none;
 }
 
 .btn-danger {
@@ -223,6 +237,25 @@
 
   .room-header__exit {
     margin-left: 0;
+  }
+
+  .room-header__add-text,
+  .room-header__exit-text,
+  .room-header__badge-text {
+    display: none;
+  }
+
+  .room-header__add-icon,
+  .room-header__exit-icon {
+    display: block;
+  }
+
+  .room-header__add-btn,
+  .room-header__exit {
+    padding: 6px;
+    width: 28px;
+    height: 28px;
+    justify-content: center;
   }
 
   .btn-sm {

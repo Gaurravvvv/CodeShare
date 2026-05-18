@@ -13,30 +13,43 @@ export function useSocket(roomId, adminToken, username) {
   useEffect(() => {
     if (!roomId) return;
 
-    const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-    });
+    let isMounted = true;
+    let newSocket = null;
 
-    setSocket(newSocket);
+    // Delay connection slightly to prevent React 18 Strict Mode double-invocation
+    // from instantly creating and destroying the socket (which causes the WebSocket error).
+    const connectTimer = setTimeout(() => {
+      if (!isMounted) return;
 
-    newSocket.on('connect', () => {
-      console.log('[Socket] Connected:', newSocket.id);
-      newSocket.emit('join-room', { roomId, adminToken, username });
-    });
+      newSocket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+      });
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('[Socket] Disconnected:', reason);
-    });
+      setSocket(newSocket);
 
-    newSocket.on('connect_error', (err) => {
-      console.error('[Socket] Connection error:', err.message);
-    });
+      newSocket.on('connect', () => {
+        console.log('[Socket] Connected:', newSocket.id);
+        newSocket.emit('join-room', { roomId, adminToken, username });
+      });
+
+      newSocket.on('disconnect', (reason) => {
+        console.log('[Socket] Disconnected:', reason);
+      });
+
+      newSocket.on('connect_error', (err) => {
+        console.error('[Socket] Connection error:', err.message);
+      });
+    }, 50);
 
     return () => {
-      newSocket.disconnect();
+      isMounted = false;
+      clearTimeout(connectTimer);
+      if (newSocket) {
+        newSocket.disconnect();
+      }
       setSocket(null);
     };
   }, [roomId, adminToken, username]);

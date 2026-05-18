@@ -58,17 +58,21 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock, onT
             </svg>
           </button>
           {isAdmin ? (
-            <span className="badge badge-admin">★ ADMIN</span>
+            <span className="badge badge-admin" title="Admin">★<span className="room-header__badge-text"> ADMIN</span></span>
           ) : (
-            <span className="badge badge-viewer">👁 VIEWER</span>
+            <span className="badge badge-viewer" title="Viewer">👁<span className="room-header__badge-text"> VIEWER</span></span>
           )}
         </div>
       </div>
 
       <div className="room-header__right">
         {isAdmin && (
-          <button className="btn btn-secondary btn-sm" onClick={onAddBlock}>
-            + Add Block
+          <button className="btn btn-secondary btn-sm room-header__add-btn" onClick={onAddBlock} title="Add Block">
+            <svg className="room-header__add-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span className="room-header__add-text">+ Add Block</span>
           </button>
         )}
         <div className="room-header__users badge badge-users">
@@ -104,7 +108,12 @@ export default function RoomHeader({ roomId, isAdmin, userCount, onAddBlock, onT
           )}
         </button>
         <button className="btn btn-danger btn-sm room-header__exit" onClick={handleExit} title="Exit Room">
-          Exit Room
+          <svg className="room-header__exit-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span className="room-header__exit-text">Exit Room</span>
         </button>
       </div>
     </header>
