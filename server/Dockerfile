@@ -1,8 +1,8 @@
 # Use Node.js 20 Alpine as base
 FROM node:20-alpine
 
-# Install LibreOffice headless for PPTX → PDF conversion
-RUN apk add --no-cache libreoffice
+# Install LibreOffice headless and standard fonts for PPTX → PDF conversion
+RUN apk add --no-cache libreoffice font-liberation ttf-dejavu font-noto
 
 # Set working directory
 WORKDIR /app
