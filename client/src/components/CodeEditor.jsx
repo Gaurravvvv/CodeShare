@@ -9,6 +9,16 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
   const [copied, setCopied] = useState(false);
   const debounceRef = useRef(null);
 
+  // Local state for immediate typing feedback
+  const [localCode, setLocalCode] = useState(block.code || '');
+
+  // Sync with remote changes
+  useEffect(() => {
+    if (block.code !== localCode) {
+      setLocalCode(block.code || '');
+    }
+  }, [block.code]);
+
   // AI Summary state
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -31,6 +41,8 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
   // Debounced code change handler
   const handleChange = useCallback((e) => {
     const newCode = e.target.value;
+    setLocalCode(newCode); // Update screen instantly with zero lag
+    
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       onCodeChange(block.id, newCode);
@@ -46,6 +58,7 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
       const end = textarea.selectionEnd;
       const value = textarea.value;
       const newValue = value.substring(0, start) + '  ' + value.substring(end);
+      setLocalCode(newValue); // Update instantly
       textarea.value = newValue;
       textarea.selectionStart = textarea.selectionEnd = start + 2;
       onCodeChange(block.id, newValue);
@@ -157,7 +170,7 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
         <textarea
           ref={textareaRef}
           className="code-editor__textarea mono"
-          value={block.code}
+          value={localCode}
           onChange={handleChange}
           onScroll={handleScroll}
           onKeyDown={isAdmin ? handleKeyDown : undefined}
