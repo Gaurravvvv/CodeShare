@@ -122,16 +122,19 @@
   color: var(--accent);
 }
 
+.file-list__entry {
+  border-bottom: 1px solid var(--border);
+}
+
+.file-list__entry:last-child {
+  border-bottom: none;
+}
+
 .file-list__item-container {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--border);
   min-width: 0;
   overflow: hidden;
-}
-
-.file-list__item-container:last-child {
-  border-bottom: none;
 }
 
 .file-list__item-container .file-list__item {
@@ -156,6 +159,24 @@
 .file-list__delete-btn:hover {
   background: var(--danger-dim);
   color: var(--danger);
+}
+
+.file-list__view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.file-list__view-btn:hover {
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 
 /* Responsive adjustments */

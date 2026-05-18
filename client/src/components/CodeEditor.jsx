@@ -9,6 +9,12 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
   const [copied, setCopied] = useState(false);
   const debounceRef = useRef(null);
 
+  // AI Summary state
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
   // Calculate line numbers
   useEffect(() => {
     const lines = (block.code || '').split('\n').length;
@@ -54,6 +60,30 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
     }
   }, [block.code]);
 
+  const handleSummarize = useCallback(async () => {
+    if (!block.code || !block.code.trim()) return;
+    // Toggle if already have summary
+    if (summary) { setSummaryOpen(prev => !prev); return; }
+    setSummaryOpen(true);
+    setSummaryLoading(true);
+    setSummaryError('');
+    try {
+      const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const res = await fetch(`${API_URL}/api/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl: '__inline__', fileName: block.name, inlineCode: block.code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Summarization failed');
+      setSummary(data);
+    } catch (err) {
+      setSummaryError(err.message || 'Could not generate summary');
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [block.code, block.name, summary]);
+
   return (
     <div className="code-editor">
       <div className="code-editor__toolbar">
@@ -65,6 +95,16 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
           {!isAdmin && <span className="badge badge-viewer">READ ONLY</span>}
         </div>
         <div className="code-editor__toolbar-right">
+          <button
+            className={`code-editor__action-btn ${summaryOpen ? 'code-editor__action-btn--active' : ''}`}
+            onClick={handleSummarize}
+            title="AI Summarize"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span className="code-editor__action-text">Summarize</span>
+          </button>
           <button 
             className="code-editor__action-btn code-editor__copy-btn" 
             onClick={handleCopy}
@@ -75,6 +115,39 @@ export default function CodeEditor({ block, isAdmin, totalBlocks, onCodeChange, 
           </button>
         </div>
       </div>
+      {/* AI Summary Panel */}
+      {summaryOpen && (
+        <div className="code-editor__summary">
+          <div className="code-editor__summary-header">
+            <span className="code-editor__summary-label">🤖 <span className="code-editor__summary-title">AI Summary</span></span>
+            <button className="code-editor__summary-close" onClick={() => setSummaryOpen(false)} title="Close">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="code-editor__summary-body">
+            {summaryLoading && <div className="code-editor__summary-skeleton"><div className="summary-shimmer"></div><div className="summary-shimmer summary-shimmer--short"></div></div>}
+            {summaryError && <p className="code-editor__summary-error">{summaryError}</p>}
+            {!summaryLoading && !summaryError && summary && (
+              <div className="code-editor__summary-content" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="code-editor__summary-section">
+                  <h4 className="code-editor__summary-subtitle" style={{ fontSize: '0.7rem', fontWeight: 600, margin: '0 0 4px 0', color: 'var(--text-primary)' }}>✨ Summary</h4>
+                  <p className="code-editor__summary-text">{typeof summary === 'string' ? summary : summary.summary}</p>
+                </div>
+                {summary.warnings && summary.warnings.length > 0 && (
+                  <div className="code-editor__summary-section code-editor__summary-section--warnings" style={{ marginTop: '4px' }}>
+                    <h4 className="code-editor__summary-subtitle" style={{ fontSize: '0.7rem', fontWeight: 600, margin: '0 0 4px 0', color: '#fbbf24' }}>⚠️ Warnings</h4>
+                    <ul className="code-editor__summary-warnings-list" style={{ margin: 0, padding: '0 0 0 16px', listStyleType: 'disc', color: '#fcd34d' }}>
+                      {summary.warnings.map((warning, idx) => (
+                        <li key={idx} className="code-editor__summary-warning-item" style={{ fontSize: '0.75rem', lineHeight: 1.5, marginBottom: '2px' }}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="code-editor__body">
         <div className="code-editor__line-numbers" ref={lineNumbersRef}>
           {Array.from({ length: lineCount }, (_, i) => (

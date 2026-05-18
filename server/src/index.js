@@ -8,6 +8,8 @@ import { initSocketHandlers } from './socket/handler.js';
 import * as filebaseService from './services/filebaseService.js';
 import roomRoutes from './routes/room.js';
 import uploadRoutes from './routes/upload.js';
+import previewRoutes from './routes/preview.js';
+import summarizeRoutes from './routes/summarize.js';
 
 const app = express();
 const server = createServer(app);
@@ -39,6 +41,8 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/rooms', roomRoutes);
 app.use('/api/rooms', uploadRoutes);
+app.use('/api/preview', previewRoutes);
+app.use('/api/summarize', summarizeRoutes);
 
 // Socket.io Setup
 const io = new Server(server, {

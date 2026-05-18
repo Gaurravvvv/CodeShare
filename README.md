@@ -55,7 +55,8 @@ graph TD
 - **Collaborative Multi-Block Editing**: Create multiple code files (blocks) within a single room. Each block synchronizes code changes in real-time across all connected clients via Socket.IO.
 - **Smart Language Detection**: Changing the file extension in the explorer (e.g., `script.js` → `script.py`) automatically updates the editor's syntax highlighting for that specific language block.
 - **Admin Access Control**: The user who creates the room is granted Admin privileges via a secure, persistent token. Only Admins can rename blocks, add/delete code blocks, or upload files to prevent griefing.
-- **Secure File Sharing**: Full integration with **Filebase (S3-compatible object storage)**. Upload and manage shared assets using secure, pre-signed URLs. The file list is scrollable when many files are uploaded.
+- **Secure File Sharing & In-Browser Preview**: Full integration with **Filebase (S3-compatible object storage)**. Upload and manage shared assets using secure, pre-signed URLs. The file list is scrollable when many files are uploaded. Click the 👁 **View** button to preview files directly in the browser! Supports images, video, audio, PDFs, spreadsheets (XLSX/CSV), GitHub-flavored Markdown (.md), and even PowerPoint presentations (PPTX) via backend LibreOffice conversion.
+- **AI-Powered File Summarization**: Click the ✨ **Summarize** button on any file to get an AI-generated one-paragraph summary powered by **Groq (Llama 3)**. Supports code files, documents (PDF, DOCX, XLSX, PPTX), and plain text. Summaries are cached in Redis for 1 hour to avoid redundant API calls.
 - **Live Room Chat & Presence**: Track active users with a live online count and participate in real-time room chat with rich mentions (`@user`, `#code-file`, `$media`). Chat messages are synchronized and persisted in Redis.
 - **Auto-Destruct & Cron Cleanup**: Privacy by design. Rooms have a TTL (Time-To-Live). Redis keyspace events trigger automatic cleanup. A dedicated **cron endpoint** (`POST /api/rooms/cron/cleanup`) reconciles orphaned S3 files against Redis, ensuring nothing is left behind even if the server was asleep during expiration.
 - **Full Dockerization**: One-command setup with healthchecks, volumes for hot-reloading, and orchestrated service startup across Frontend, Backend, and Redis.
@@ -95,6 +96,7 @@ CodeShare is built on a modern JavaScript ecosystem, prioritizing speed, real-ti
 
 - **Docker Desktop** (for Redis container)
 - **Node.js (v20+)**
+- **LibreOffice** (optional, but required for local PPTX to PDF preview conversion)
 
 ### Option 1: Quick Start with `run.bat` (Windows)
 
@@ -151,6 +153,7 @@ Create this file in the `server/` directory.
 | `FILEBASE_SECRET`| Your Filebase Secret Key | `your_secret_key` |
 | `FILEBASE_BUCKET`| The Filebase Bucket Name to store uploaded files | `codeshare-bucket` |
 | `CRON_SECRET`    | Secret token to authenticate the cleanup cron job | `your_super_secret_string` |
+| `GROQ_API_KEY`   | API key for Groq AI summarization (get from [console.groq.com](https://console.groq.com)) | `gsk_...` |
 
 *(Note: Filebase requires an account. You can replace Filebase with AWS S3 credentials as the SDK is compatible).*
 
@@ -175,7 +178,7 @@ CodeShare/
 ├── client/                 # React Frontend (Vite)
 │   ├── public/             # Static assets (Favicon, Screenshots)
 │   ├── src/
-│   │   ├── components/     # UI: ChatPanel, CodeEditor, FileList, RoomHeader
+│   │   ├── components/     # UI: ChatPanel, CodeEditor, FileList, FilePreviewModal, SummaryCard, RoomHeader
 │   │   ├── hooks/          # Custom React hooks (useSocket.js)
 │   │   ├── pages/          # Landing.jsx, Room.jsx (+ CSS)
 │   │   ├── utils/          # API helpers and Axios instances
@@ -185,7 +188,7 @@ CodeShare/
 ├── server/                 # Node.js Backend
 │   ├── src/
 │   │   ├── config/         # Redis connection config
-│   │   ├── routes/         # REST routes (Rooms, Upload, Cron Cleanup)
+│   │   ├── routes/         # REST routes (Rooms, Upload, Cron Cleanup, Preview)
 │   │   ├── services/       # roomService, filebaseService (S3 + orphan cleanup)
 │   │   ├── socket/         # Socket.io event handlers
 │   │   └── index.js        # Server entry point

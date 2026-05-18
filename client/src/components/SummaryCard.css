@@ -1,0 +1,156 @@
+/* ─── Summarize Button (inline in action row) ─── */
+.file-list__summarize-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.file-list__summarize-btn:hover {
+  background: var(--accent-cyan-dim);
+  color: var(--accent-cyan);
+}
+
+.file-list__summarize-btn--active {
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-dim);
+}
+
+/* ─── Summary Card (below file entry) ─── */
+.summary-card {
+  background: var(--bg-tertiary);
+  animation: summaryFadeIn 0.25s ease;
+}
+
+@keyframes summaryFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.summary-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.summary-card__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-card__icon {
+  font-size: 0.8rem;
+}
+
+.summary-card__title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+}
+
+.summary-card__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.summary-card__close:hover {
+  background: var(--danger-dim);
+  color: var(--danger);
+}
+
+/* ─── Body ─── */
+.summary-card__body {
+  padding: 6px 12px 10px;
+}
+
+.summary-card__text {
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.summary-card__error {
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+
+/* ─── Loading Skeleton ─── */
+.summary-card__loading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-card__skeleton {
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--bg-hover) 25%, var(--border) 50%, var(--bg-hover) 75%);
+  background-size: 200% 100%;
+  animation: summaryShimmer 1.5s ease infinite;
+}
+
+.summary-card__skeleton--short {
+  width: 65%;
+}
+
+@keyframes summaryShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Content Sections ─── */
+.summary-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-card__subtitle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  margin: 0 0 4px 0;
+}
+
+/* ─── Warnings Section ─── */
+.summary-card__section--warnings {
+  margin-top: 4px;
+}
+
+.summary-card__section--warnings .summary-card__subtitle {
+  color: #fbbf24;
+}
+
+.summary-card__warnings-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  list-style-type: disc;
+  color: #fcd34d;
+}
+
+.summary-card__warning-item {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
