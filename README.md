@@ -4,6 +4,8 @@ CodeShare is a high-performance, real-time collaborative code editor and file-sh
 
 🌍 **Live Demo:** [https://codesharre.vercel.app](https://codesharre.vercel.app)
 
+---
+
 ## 🏗️ Architecture Diagram
 
 ```mermaid
@@ -47,101 +49,146 @@ graph TD
 
 ![Interface Overview](client/public/screenshot.png) 
 
-## 🚀 Key Features & How They Work
+---
 
-- **VS Code-Style Interface**: A clean two-panel layout with a left-side Explorer and a central Active Editor, plus a toggleable right-side File Management pane. Fully responsive for mobile, tablet, and split-screen windows.
-- **Full-Screen Chat Toggle**: Chat and Code views share the same main viewport — click the toggle button in the header to seamlessly switch between them. No awkward side panels.
-- **Unread Message Notifications**: When you're in the editor and someone sends a chat message, a live notification badge with unread count pops up on the Chat button so you never miss a message.
-- **Collaborative Multi-Block Editing**: Create multiple code files (blocks) within a single room. Each block synchronizes code changes in real-time across all connected clients via Socket.IO.
-- **Smart Language Detection**: Changing the file extension in the explorer (e.g., `script.js` → `script.py`) automatically updates the editor's syntax highlighting for that specific language block.
-- **Resource-Level Ownership**: Every user can add code blocks and upload files. Each resource tracks its `ownerId` — only the owner or the current Host can edit/delete it. Non-owners see a **READ ONLY** badge and have action buttons hidden. A **"You"** badge marks your own resources in the Explorer and File List.
-- **Dynamic Host System**: The longest-staying user in the room is automatically the **Host** (★ HOST badge). Hosts can edit/delete any resource. When the Host leaves, the role seamlessly transfers to the next longest-staying user via the `host-updated` event — no page refresh needed. If the original creator rejoins later, they enter as a regular **Member** (👤 MEMBER badge) with no special privileges.
-- **Ownership Transfer on Disconnect**: When any user disconnects, all their resources (code blocks and files) are automatically transferred to the current Host. If the room is empty when a new user joins, they inherit all orphaned resources.
-- **Secure File Sharing & In-Browser Preview**: Full integration with **Filebase (S3-compatible object storage)**. Upload and manage shared assets using secure, pre-signed URLs. The file list is scrollable when many files are uploaded. Click the 👁 **View** button to preview files directly in the browser! Supports images, video, audio, PDFs, spreadsheets (XLSX/CSV), GitHub-flavored Markdown (.md), and even PowerPoint presentations (PPTX) via backend LibreOffice conversion.
-- **AI Code Analysis Agent**: Click the ✨ **Summarize** button on any file or inline code block to run it through our AI Agent powered by **Groq (Llama 3)**. For code files, it generates a high-level summary *and* actively detects bugs, typos, and security vulnerabilities (flagged as warnings). For standard documents (PDF, DOCX, XLSX, PPTX) and plain text, it provides a concise paragraph summary. All AI responses use structured JSON parsing and are cached in Redis for 1 hour for instant retrieval without hitting API limits.
-- **Live Room Chat & Presence**: Track active users with a live online count and participate in real-time room chat with rich mentions (`@user`, `#code-file`, `$media`). Chat messages are synchronized and persisted in Redis.
-- **Auto-Destruct & Cron Cleanup**: Privacy by design. Rooms have a TTL (Time-To-Live). Redis keyspace events trigger automatic cleanup. A dedicated **cron endpoint** (`POST /api/rooms/cron/cleanup`) reconciles orphaned S3 files against Redis, ensuring nothing is left behind even if the server was asleep during expiration.
-- **Full Dockerization**: One-command setup with healthchecks, volumes for hot-reloading, and orchestrated service startup across Frontend, Backend, and Redis.
-- **Mobile Responsive**: The entire UI gracefully adapts to mobile screens and narrow split-screen windows with proper breakpoints at 1024px, 768px, and 480px. On smaller devices, the top header intelligently collapses into clean icon-only buttons (➕, 🚪, ★) to maximize horizontal real estate for the code editor.
+## 🚀 Key Features & Detailed Workflows
+
+### 1. Dual-Viewport VS Code-Inspired UI & Mobile Responsiveness
+*   **Split Layout**: Features a left-side Explorer sidebar, a central code editor supporting multiple file tabs, a right-side toggleable File Manager, and a collapsible room activity footer.
+*   **Adaptive Viewport Toggle**: To keep the screen clean, Chat and Code views share the same main viewport. Users toggle between them via the header. Unread messages trigger badge counters on the header toggle.
+*   **BEM Styling System**: Developed in Vanilla CSS3 adhering to Block-Element-Modifier (BEM) naming conventions for clean, modular, and performant styles without CSS utility bloat.
+*   **Mobile Adaptability (<768px)**: 
+    *   Header buttons dynamically collapse to compact icons (e.g., ➕ for Add Block, 🚪 for Leave Room, ★ for Host).
+    *   Code editor control bars hide text labels (e.g., "Summary", "Copy", "Delete") and render only SVG icons.
+    *   Clicking a file block in the Explorer automatically closes the mobile dropdown menu (`setIsMobileMenuOpen(false)`) to prevent viewport obstruction.
+
+### 2. Collaborative Multi-Block Editing & Latency Compensation
+*   **Multi-Block Architecture**: Rooms can hold multiple code files (blocks) simultaneously. Active document content, filenames, and language configurations sync in real time.
+*   **Zero-Lag Typing (Latency Compensation)**:
+    *   To prevent network-roundtrip cursor stutter and keyboard lag, the client maintains a local state (`localCode`) inside the [CodeEditor.jsx](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/client/src/components/CodeEditor.jsx).
+    *   Typing updates the UI immediately. A `useRef` debounce timer waits **1000ms** before dispatching the `code-update` event to the backend.
+    *   Remote `code-updated` socket events update the client's local state **only** if the remote value differs from the local text buffer, preventing caret jumps and editing conflicts.
+*   **Tab Indentation Interceptor**: Replaces the browser's default tab-focus navigation behavior in the editor textarea, inserting two spaces (`  `) at the current cursor position instead.
+
+### 3. Dynamic Host & Resource Ownership System
+*   **Ownership Boundaries**: Every created code block and uploaded file is stamped with the creator's connection socket ID (`ownerId`). 
+*   **Read-Only Safeguards**: Non-owners see a locked **READ ONLY** badge and have edit, rename, and delete buttons hidden. Owners see a **You** badge to identify their assets.
+*   **Redis-Backed Host Queue**: 
+    *   The room state tracks a `joinOrder` list in Redis. The first/oldest socket in the list is designated as the **Host** (★ HOST badge).
+    *   Hosts override all ownership verification checks and retain global rights to rename, modify, or delete any resource in the room.
+*   **Role Promotion & Asset Migration**:
+    *   When the Host leaves, the backend [roomService.js](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/server/src/services/roomService.js) removes them from `joinOrder`, promotes `joinOrder[0]` to the new Host, and broadcasts a `host-updated` socket event.
+    *   Resources owned by the departing Host are transferred to the newly promoted Host.
+    *   If a non-host user disconnects, all their resources are transferred to the current Host.
+    *   If a room is empty and a new user joins, they automatically inherit all orphan files and code blocks.
+*   **Latency-Safe Connection Tracking**: Resolves the initial socket connection delay (first 50ms) by returning the user's socket ID in the server's `room-state` payload, saved as `mySocketId` for instantaneous local ownership validation.
+
+### 4. In-Browser File Preview Engine
+Clicking the 👁 **View** button next to any file in the File list opens a glassmorphism modal [FilePreviewModal.jsx](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/client/src/components/FilePreviewModal.jsx) with custom file-type renderers:
+*   **Media files**: Native `<audio>`, `<video>`, and `<img>` players.
+*   **DOCX**: Parsed in-browser using `mammoth.js` to render high-fidelity HTML directly.
+*   **XLSX / CSV**: Loaded into memory via SheetJS (`xlsx`), parsed into JSON rows, and rendered as a stylized HTML table.
+*   **PDF**: Integrated native PDF viewer powered by `pdfjs-dist`.
+*   **PPTX (Server-Side LibreOffice Conversion)**:
+    *   PPTX cannot be natively read in-browser. The client fires a request to `POST /api/preview/pptx` with the file URL.
+    *   The backend retrieves the file buffer, saves it in a temporary folder, and spins up a headless LibreOffice process (`soffice --headless --convert-to pdf`).
+    *   To prevent Windows locking exceptions, a unique `-env:UserInstallation` path is specified for the LibreOffice profile.
+    *   The backend returns the converted PDF buffer to the client, which renders it using the PDF previewer.
+
+### 5. AI Code Analysis & Document Summarization Agent
+Powered by **Groq Cloud API** using the `llama-3.3-70b-versatile` model, users can analyze code or documents with one click:
+*   **Text Extraction Pipeline**:
+    *   **PDF**: Text extracted on the server via `pdfjs-dist/legacy`.
+    *   **DOCX**: Text extracted via `mammoth`.
+    *   **XLSX**: Spreadsheets parsed by SheetJS and formatted as structured CSV text.
+    *   **PPTX**: Converted to PDF via LibreOffice, then PDF text-extracted.
+*   **Rate-Limit Truncation**: Inputs are truncated to 1200 words to respect free-tier Groq API rates.
+*   **Analysis Modes**:
+    *   **Code Mode**: Prompted to return a JSON payload containing a `summary` and `warnings` array. The AI scans the code for security vulnerabilities, syntax errors, and performance bugs. Detected issues display under yellow warning callouts in the [SummaryCard.jsx](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/client/src/components/SummaryCard.jsx).
+    *   **Document Mode**: Returns a single concise paragraph summary of the text.
+*   **Caching**: AI analysis results are cached in Redis for **1 hour** (`3600 seconds`) under `summary:${fileName}:${fileUrl}` keys to avoid redundant API fees.
+
+### 6. Auto-Destruct & Cron Cleanup
+*   **Room Expire (TTL)**: Redis keys for rooms, active users, chat messages, and ownership hashes are configured with a **2-hour TTL** (7200 seconds). Any room activity (chat message, code modification, join event) resets this TTL.
+*   **Cron-Backed Orphan Reconciler**: 
+    *   If a backend server sleeps (e.g., Render/Heroku free tiers), Redis keyspace notifications for expiration may be missed, leaving orphaned files in the storage bucket.
+    *   A secure endpoint `POST /api/rooms/cron/cleanup` is protected by `CRON_SECRET`.
+    *   The cron job uses AWS S3 SDK with `/` delimiters to list folders inside `rooms/` on Filebase.
+    *   It parses the room IDs from prefixes (e.g., `rooms/ROOM_ID/`), checks Redis for room existence, and calls `deleteRoomFiles` to purge files from the bucket if the room has expired.
+
+---
 
 ## 🏗️ Architecture & Tech Stack
 
 CodeShare is built on a modern JavaScript ecosystem, prioritizing speed, real-time capabilities, and scalability.
 
 ### 1. Frontend (Client)
-- **Framework**: React.js (via Vite for lightning-fast HMR and optimized builds).
-- **Styling**: Vanilla CSS3 using BEM conventions for lightweight, conflict-free styling.
-- **Real-Time Communication**: `socket.io-client` handles the persistent connection to the backend, broadcasting code changes, chat messages, and user presence instantly.
-- **Why?**: React offers excellent component-based state management necessary for an IDE-like interface, while Vite provides the best developer experience in the current ecosystem.
+*   **Framework**: React.js (built with Vite for fast HMR and optimized bundle builds).
+*   **Styling**: Vanilla CSS3 using BEM conventions for lightweight, conflict-free styling.
+*   **Real-Time**: `socket.io-client` handles the persistent connection to the backend, broadcasting code changes, chat messages, and user presence instantly.
+*   **In-browser Renderers**: `pdfjs-dist` (PDF preview), `mammoth` (Word document HTML parsing), and `xlsx` (Excel sheet processing).
 
 ### 2. Backend (Server)
-- **Runtime**: Node.js with Express.js for REST API routes (room creation, admin validation).
-- **WebSockets**: `socket.io` manages rooms, broadcasts events (code updates, chat, file operations), and handles client disconnections seamlessly.
-- **Why?**: Node.js shines in I/O-heavy, real-time applications. Socket.IO provides reliable WebSocket connections with built-in broadcasting and fallback polling.
+*   **Runtime**: Node.js with Express.js for REST API routes (room creation, admin validation, PPTX conversion, AI summary).
+*   **WebSockets**: `socket.io` manages rooms, broadcasts events (code updates, chat, file operations), and handles client disconnections.
+*   **Conversion Engine**: Headless LibreOffice binary execution for converting complex slides to standard formats.
 
 ### 3. State & Database (Redis)
-- **Library**: `ioredis`
-- **Usage**: Redis acts as the single source of truth for the active application state. It stores:
-  - Room data (code blocks with `ownerId`, connected users).
-  - `joinOrder` array for dynamic Host role assignment and ownership transfer.
-  - User identity hash (`room:{id}:users`) for accurate user counting.
-  - Chat history.
-  - TTL (Time-To-Live) keys to manage room expiration.
-- **Why?**: Redis is an in-memory data store, making it incredibly fast. This is crucial when syncing keystrokes across multiple users in milliseconds. It also natively supports keyspace notifications used for the auto-destruct feature.
+*   **Library**: `ioredis`
+*   **Usage**: Redis acts as the single source of truth for the active application state. It stores:
+    *   Room data (code blocks with `ownerId`, connected users).
+    *   `joinOrder` array for dynamic Host role assignment and ownership transfer.
+    *   User identity hash (`room:{id}:users`) for accurate user counting.
+    *   Chat history.
+    *   TTL (Time-To-Live) keys to manage room expiration.
 
 ### 4. Storage (Filebase / AWS S3 SDK)
-- **Library**: `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`
-- **Usage**: When a file is uploaded, the backend generates an S3 Pre-signed PUT URL. The client uploads the file directly to Filebase (S3-compatible decentralized storage), bypassing the Node server to save bandwidth. 
-- **Why?**: Offloading file storage to an S3-compatible bucket ensures the Node backend remains performant and isn't bogged down by heavy file buffers. Filebase offers decentralized, highly available storage.
+*   **Library**: `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`
+*   **Usage**: When a file is uploaded, the backend generates an S3 Pre-signed PUT URL. The client uploads the file directly to Filebase (S3-compatible decentralized storage), bypassing the Node server to save bandwidth.
+
+---
 
 ## 🚦 Getting Started
 
 ### Prerequisites
-
-- **Docker Desktop** (for Redis container)
-- **Node.js (v20+)**
-- **LibreOffice** (optional, but required for local PPTX to PDF preview conversion)
+*   **Docker Desktop** (for Redis container)
+*   **Node.js (v20+)**
+*   **LibreOffice** (optional, but required for local PPTX to PDF preview conversion)
 
 ### Option 1: Quick Start with `run.bat` (Windows)
-
 The project includes a `run.bat` file that starts everything in one click:
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Gaurravvvv/CodeShare.git
-   cd CodeShare
-   ```
-
-2. **Setup environment variables** (see below).
-
-3. **Double-click `run.bat`** — it will:
-   - Start a Redis container via Docker (auto-creates if not exists)
-   - Launch the Backend dev server (port 3001)
-   - Launch the Frontend dev server (port 5173)
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/Gaurravvvv/CodeShare.git
+    cd CodeShare
+    ```
+2.  **Setup environment variables** (see below).
+3.  **Double-click `run.bat`** — it will:
+    *   Start a Redis container via Docker (auto-creates if not exists)
+    *   Launch the Backend dev server (port 3001)
+    *   Launch the Frontend dev server (port 5173)
 
 ### Option 2: Run with Docker Compose
-
 ```bash
 docker-compose up --build
 ```
 *Starts Redis, Backend, and Frontend. App available at `http://localhost:5173`.*
 
 ### Option 3: Run Manually
+1.  **Start Redis**:
+    ```bash
+    docker run -d --name codeshare-redis -p 6379:6379 redis:7-alpine
+    ```
+2.  **Backend**:
+    ```bash
+    cd server && npm install && npm run dev
+    ```
+3.  **Frontend**:
+    ```bash
+    cd client && npm install && npm run dev
+    ```
 
-1. **Start Redis**:
-   ```bash
-   docker run -d --name codeshare-redis -p 6379:6379 redis:7-alpine
-   ```
-
-2. **Backend**:
-   ```bash
-   cd server && npm install && npm run dev
-   ```
-
-3. **Frontend**:
-   ```bash
-   cd client && npm install && npm run dev
-   ```
+---
 
 ## ⚙️ Environment Variables
 
@@ -149,30 +196,34 @@ docker-compose up --build
 Create this file in the `server/` directory.
 
 | Variable | Description | Default / Example |
-|---|---|---|
+| :--- | :--- | :--- |
 | `PORT` | The port the Node server runs on | `3001` |
 | `CLIENT_URL` | URL of the frontend (for CORS and Socket origins) | `http://localhost:5173` |
 | `REDIS_URL` | Redis connection string. Use `redis://redis:6379` if using Docker, or `redis://localhost:6379` for local. | `redis://redis:6379` |
 | `FILEBASE_KEY` | Your Filebase Access Key | `your_access_key` |
-| `FILEBASE_SECRET`| Your Filebase Secret Key | `your_secret_key` |
-| `FILEBASE_BUCKET`| The Filebase Bucket Name to store uploaded files | `codeshare-bucket` |
-| `CRON_SECRET`    | Secret token to authenticate the cleanup cron job | `your_super_secret_string` |
-| `GROQ_API_KEY`   | API key for Groq AI summarization (get from [console.groq.com](https://console.groq.com)) | `gsk_...` |
+| `FILEBASE_SECRET` | Your Filebase Secret Key | `your_secret_key` |
+| `FILEBASE_BUCKET` | The Filebase Bucket Name to store uploaded files | `codeshare-bucket` |
+| `CRON_SECRET` | Secret token to authenticate the cleanup cron job | `your_super_secret_string` |
+| `GROQ_API_KEY` | API key for Groq AI summarization (get from [console.groq.com](https://console.groq.com)) | `gsk_...` |
 
 *(Note: Filebase requires an account. You can replace Filebase with AWS S3 credentials as the SDK is compatible).*
-
-### 🧹 Cron Job Cleanup Setup (For Cloud PaaS)
-If your backend is hosted on a free tier (like Render) that sleeps on inactivity, Redis keyspace events might be missed. To ensure uploaded files are deleted when rooms expire, we have a cron endpoint.
-1. Set a strong `CRON_SECRET` in your server environment variables.
-2. Use a free service like [cron-job.org](https://cron-job.org/) to send a `POST` request to `https://your-backend-url.com/api/rooms/cron/cleanup` every 6 hours.
-3. The body must be JSON: `{"secret": "your_super_secret_string"}`.
 
 ### Client (`client/.env`)
 Create this file in the `client/` directory.
 
 | Variable | Description | Default / Example |
-|---|---|---|
+| :--- | :--- | :--- |
 | `VITE_API_URL` | The URL where the frontend can reach the Node backend API and WebSocket server. | `http://localhost:3001` |
+
+---
+
+## 🧹 Cron Job Cleanup Setup (For Cloud PaaS)
+If your backend is hosted on a free tier (like Render) that sleeps on inactivity, Redis keyspace events might be missed. To ensure uploaded files are deleted when rooms expire, we have a cron endpoint.
+1.  Set a strong `CRON_SECRET` in your server environment variables.
+2.  Use a free service like [cron-job.org](https://cron-job.org/) to send a `POST` request to `https://your-backend-url.com/api/rooms/cron/cleanup` every 6 hours.
+3.  The body must be JSON: `{"secret": "your_super_secret_string"}`.
+
+---
 
 ## 📁 Project Structure
 
@@ -202,10 +253,14 @@ CodeShare/
 └── README.md
 ```
 
+---
+
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!
 Feel free to check the issues page if you want to contribute.
+
+---
 
 ## 📄 License
 
