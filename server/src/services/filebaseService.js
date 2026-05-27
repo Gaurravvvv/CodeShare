@@ -57,6 +57,7 @@ export async function generateUploadUrl(roomId, filename, fileType) {
   const downloadCommand = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
+    ResponseContentDisposition: `attachment; filename="${filename}"`
   });
 
   // Generate a signed Download URL valid for 7 days (604800 seconds)
