@@ -19,5 +19,5 @@ COPY . .
 # Expose port
 EXPOSE 3001
 
-# Command for development
-CMD ["npm", "run", "dev"]
+# Command for production (use docker-compose for dev with nodemon)
+CMD ["npm", "start"]
