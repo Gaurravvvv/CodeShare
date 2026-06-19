@@ -1,6 +1,7 @@
 import express from 'express';
 import * as roomService from '../services/roomService.js';
 import * as filebaseService from '../services/filebaseService.js';
+import { roomCreationLimiter, cronLimiter } from '../middleware/security.js';
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ const router = express.Router();
  * Cron job endpoint to clean up orphaned S3 files.
  * Protected by CRON_SECRET environment variable.
  */
-router.post('/cron/cleanup', async (req, res) => {
+router.post('/cron/cleanup', cronLimiter, async (req, res) => {
   try {
     const { secret } = req.body;
     
@@ -18,14 +19,23 @@ router.post('/cron/cleanup', async (req, res) => {
       return res.status(500).json({ error: 'CRON_SECRET is not configured on the server' });
     }
     
-    if (secret !== process.env.CRON_SECRET) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid CRON_SECRET' });
+    // Constant-time comparison to prevent timing attacks
+    if (!secret || typeof secret !== 'string' || secret.length !== process.env.CRON_SECRET.length) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    // Use timing-safe comparison
+    const crypto = await import('crypto');
+    const expected = Buffer.from(process.env.CRON_SECRET);
+    const actual = Buffer.from(secret);
+    if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const result = await filebaseService.cleanupOrphanedFiles(roomService.roomExists);
     res.json(result);
   } catch (err) {
-    console.error('[Room] Cron cleanup error:', err);
+    console.error('[Room] Cron cleanup error:', err.message);
     res.status(500).json({ error: 'Failed to execute cron cleanup' });
   }
 });
@@ -34,12 +44,12 @@ router.post('/cron/cleanup', async (req, res) => {
  * POST /api/rooms
  * Create a new room. Returns { roomId, adminToken }
  */
-router.post('/', async (req, res) => {
+router.post('/', roomCreationLimiter, async (req, res) => {
   try {
     const { roomId, adminToken } = await roomService.createRoom();
     res.status(201).json({ roomId, adminToken });
   } catch (err) {
-    console.error('[Room] Creation error:', err);
+    console.error('[Room] Creation error:', err.message);
     res.status(500).json({ error: 'Failed to create room' });
   }
 });
@@ -50,14 +60,21 @@ router.post('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const room = await roomService.getRoom(req.params.id);
+    const roomId = req.params.id;
+    
+    // Validate room ID format (alphanumeric, 4-10 chars)
+    if (!/^[A-Z0-9]{4,10}$/i.test(roomId)) {
+      return res.status(400).json({ error: 'Invalid room ID format' });
+    }
+    
+    const room = await roomService.getRoom(roomId);
     if (!room) {
       return res.status(404).json({ error: 'Room not found or expired' });
     }
-    await roomService.resetTTL(req.params.id);
+    await roomService.resetTTL(roomId);
     res.json(room);
   } catch (err) {
-    console.error('[Room] Fetch error:', err);
+    console.error('[Room] Fetch error:', err.message);
     res.status(500).json({ error: 'Failed to fetch room' });
   }
 });
@@ -69,7 +86,7 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/verify-admin', async (req, res) => {
   try {
     const { adminToken } = req.body;
-    if (!adminToken) {
+    if (!adminToken || typeof adminToken !== 'string') {
       return res.status(400).json({ error: 'adminToken is required' });
     }
 
@@ -81,7 +98,7 @@ router.post('/:id/verify-admin', async (req, res) => {
     const isAdmin = await roomService.verifyAdmin(req.params.id, adminToken);
     res.json({ isAdmin });
   } catch (err) {
-    console.error('[Room] Admin verify error:', err);
+    console.error('[Room] Admin verify error:', err.message);
     res.status(500).json({ error: 'Failed to verify admin' });
   }
 });

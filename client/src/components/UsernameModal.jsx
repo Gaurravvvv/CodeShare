@@ -16,6 +16,11 @@ export default function UsernameModal({ onSubmit }) {
       setError('Username must be 20 characters or less');
       return;
     }
+    // Security: Only allow safe characters (prevents XSS via stored username)
+    if (!/^[a-zA-Z0-9_\-. ]+$/.test(trimmed)) {
+      setError('Only letters, numbers, spaces, _ - . are allowed');
+      return;
+    }
     onSubmit(trimmed);
   }, [name, onSubmit]);
 

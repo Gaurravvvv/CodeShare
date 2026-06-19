@@ -3,13 +3,20 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { redisSub } from './config/redis.js'; // Ensure this uses the rediss:// URL
+import { redisSub } from './config/redis.js'; // Ensure this uses the redss:// URL
 import { initSocketHandlers } from './socket/handler.js';
 import * as filebaseService from './services/filebaseService.js';
 import roomRoutes from './routes/room.js';
 import uploadRoutes from './routes/upload.js';
 import previewRoutes from './routes/preview.js';
 import summarizeRoutes from './routes/summarize.js';
+import { socketAuthMiddleware } from './middleware/auth.js';
+
+// Security middleware
+import {
+  helmetMiddleware,
+  generalLimiter,
+} from './middleware/security.js';
 
 const app = express();
 const server = createServer(app);
@@ -26,25 +33,32 @@ if (process.env.CLIENT_URL && !ALLOWED_ORIGINS.includes(process.env.CLIENT_URL))
 
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// ─── Security Middleware ────────────────────────────────────────────────────────
+app.use(helmetMiddleware);
+app.use(generalLimiter);
+
+// ─── CORS ───────────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: ALLOWED_ORIGINS,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
 }));
-app.use(express.json());
 
-// Health check (Crucial for Render to know your app is "Live")
+// ─── Body Parsing (with size limit) ─────────────────────────────────────────────
+app.use(express.json({ limit: '1mb' }));
+
+// ─── Health Check (minimal info disclosure) ─────────────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
+  res.json({ status: 'ok' });
 });
 
+// ─── Routes ─────────────────────────────────────────────────────────────────────
 app.use('/api/rooms', roomRoutes);
 app.use('/api/rooms', uploadRoutes);
 app.use('/api/preview', previewRoutes);
 app.use('/api/summarize', summarizeRoutes);
 
-// Socket.io Setup
+// ─── Socket.io Setup ────────────────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
     origin: ALLOWED_ORIGINS,
@@ -52,8 +66,13 @@ const io = new Server(server, {
     credentials: true,
   },
   // Adding stability for cloud environments
-  pingTimeout: 60000, 
+  pingTimeout: 60000,
+  // Socket payload size limit (1MB)
+  maxHttpBufferSize: 1e6,
 });
+
+// Socket authentication middleware
+io.use(socketAuthMiddleware);
 
 initSocketHandlers(io);
 
@@ -94,6 +113,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n╔══════════════════════════════════════════╗`);
   console.log(`║   Aether Production Server Active        ║`);
   console.log(`║   Port: ${PORT.toString().padEnd(33)}║`);
-  console.log(`║   Origins Allowed: ${ALLOWED_ORIGINS.length.toString().padEnd(22)}║`);
+  console.log(`║   Security: Helmet + Rate Limiting       ║`);
   console.log(`╚══════════════════════════════════════════╝\n`);
 });

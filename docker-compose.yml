@@ -4,19 +4,24 @@ services:
   redis:
     image: redis:7-alpine
     container_name: codeshare-redis
-    ports:
-      - '6379:6379'
+    # Redis port NOT exposed to host for security — only accessible within Docker network
     volumes:
       - redis-data:/data
-    command: redis-server --notify-keyspace-events Ex
+    command: redis-server --notify-keyspace-events Ex --requirepass ${REDIS_PASSWORD:-codeshare_redis_dev_password}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-codeshare_redis_dev_password}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
     networks:
       - codeshare-net
     restart: unless-stopped
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
 
   server:
     build:
@@ -31,7 +36,8 @@ services:
     env_file:
       - ./server/.env
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-codeshare_redis_dev_password}@redis:6379
+      - NODE_ENV=production
     depends_on:
       redis:
         condition: service_healthy
@@ -43,6 +49,12 @@ services:
     networks:
       - codeshare-net
     restart: unless-stopped
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
   client:
     build:
@@ -72,6 +84,12 @@ services:
     networks:
       - codeshare-net
     restart: unless-stopped
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
 networks:
   codeshare-net:

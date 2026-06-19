@@ -3,8 +3,12 @@ import { execFile } from 'child_process';
 import { writeFile, readFile, unlink, mkdtemp } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
+import { safeFetch } from '../utils/urlValidator.js';
 
 const router = express.Router();
+
+// Maximum file size for PPTX conversion (50MB)
+const MAX_PPTX_SIZE = 50 * 1024 * 1024;
 
 /**
  * POST /api/preview/pptx
@@ -14,7 +18,7 @@ const router = express.Router();
 router.post('/pptx', async (req, res) => {
   const { url } = req.body;
 
-  if (!url) {
+  if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'url is required in request body' });
   }
 
@@ -25,12 +29,18 @@ router.post('/pptx', async (req, res) => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'pptx-preview-'));
     const inputPath = path.join(tempDir, 'input.pptx');
 
-    // 2. Fetch the PPTX file from the presigned URL
-    const response = await fetch(url);
+    // 2. Fetch the PPTX file from the presigned URL (SSRF protected)
+    const response = await safeFetch(url, { maxSizeBytes: MAX_PPTX_SIZE });
     if (!response.ok) {
       throw new Error(`Failed to fetch PPTX: ${response.status} ${response.statusText}`);
     }
     const buffer = Buffer.from(await response.arrayBuffer());
+    
+    // Verify actual size
+    if (buffer.length > MAX_PPTX_SIZE) {
+      throw new Error('File too large for conversion');
+    }
+    
     await writeFile(inputPath, buffer);
 
     // 3. Convert PPTX → PDF using LibreOffice headless
@@ -57,8 +67,7 @@ router.post('/pptx', async (req, res) => {
         (error, stdout, stderr) => {
           if (error) {
             console.error('[Preview] LibreOffice error:', error.message);
-            console.error('[Preview] STDERR:', stderr);
-            reject(new Error(`LibreOffice conversion failed. Is ${command} in your PATH?`));
+            reject(new Error('File conversion failed'));
           } else {
             resolve(stdout);
           }
@@ -79,7 +88,11 @@ router.post('/pptx', async (req, res) => {
     res.send(pdfBuffer);
   } catch (err) {
     console.error('[Preview] PPTX conversion error:', err.message);
-    res.status(500).json({ error: 'Failed to convert PPTX to PDF' });
+    // Don't leak internal error details
+    const safeMessage = err.message.startsWith('SSRF blocked')
+      ? 'Invalid file URL'
+      : 'Failed to convert PPTX to PDF';
+    res.status(err.message.startsWith('SSRF blocked') ? 400 : 500).json({ error: safeMessage });
   } finally {
     // 6. Cleanup temp files
     if (tempDir) {

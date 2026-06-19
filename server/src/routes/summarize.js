@@ -5,11 +5,15 @@ import { tmpdir } from 'os';
 import path from 'path';
 import Groq from 'groq-sdk';
 import { redis } from '../config/redis.js';
+import { safeFetch } from '../utils/urlValidator.js';
+import { summarizeLimiter } from '../middleware/security.js';
 
 const router = express.Router();
 
 const CACHE_TTL = 3600; // 1 hour in seconds
 const MAX_WORDS = 1200; // Reduced to prevent Groq free-tier TPM limits
+const MAX_INLINE_CODE_LENGTH = 100000; // 100KB max for inline code
+const MAX_FETCH_SIZE = 50 * 1024 * 1024; // 50MB max file fetch
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -90,7 +94,7 @@ async function extractTextFromPptx(buffer) {
       [`-env:UserInstallation=${profileUrl}`, '--headless', '--convert-to', 'pdf', '--outdir', tempDir, inputPath],
       { timeout: 45000 },
       (error, stdout, stderr) => {
-        if (error) reject(new Error('LibreOffice conversion failed'));
+        if (error) reject(new Error('File conversion failed'));
         else resolve(stdout);
       }
     );
@@ -115,11 +119,21 @@ async function extractTextFromPptx(buffer) {
  * Accepts: { fileUrl: string, fileName: string }
  * Returns: { summary: string }
  */
-router.post('/', async (req, res) => {
+router.post('/', summarizeLimiter, async (req, res) => {
   const { fileUrl, fileName, inlineCode } = req.body;
 
   if ((!fileUrl && !inlineCode) || !fileName) {
     return res.status(400).json({ error: 'fileName and either fileUrl or inlineCode are required' });
+  }
+
+  // Validate fileName
+  if (typeof fileName !== 'string' || fileName.length > 255) {
+    return res.status(400).json({ error: 'Invalid fileName' });
+  }
+
+  // Validate inlineCode size
+  if (inlineCode && (typeof inlineCode !== 'string' || inlineCode.length > MAX_INLINE_CODE_LENGTH)) {
+    return res.status(400).json({ error: `Inline code too large (max ${MAX_INLINE_CODE_LENGTH / 1000}KB)` });
   }
 
   // Check if GROQ_API_KEY is configured
@@ -154,9 +168,9 @@ router.post('/', async (req, res) => {
       // Inline code from the editor — no fetch needed
       extractedText = inlineCode;
     } else {
-      // Fetch the file from the presigned URL
+      // Fetch the file from the presigned URL (SSRF protected)
       console.log(`[Summarize] Fetching ${fileName} for summarization...`);
-      const response = await fetch(fileUrl);
+      const response = await safeFetch(fileUrl, { maxSizeBytes: MAX_FETCH_SIZE });
       if (!response.ok) {
         throw new Error(`Failed to fetch file: ${response.status}`);
       }
@@ -248,8 +262,12 @@ Return only raw JSON. No markdown, no explanation, no extra text.`
 
     res.json(result);
   } catch (err) {
-    console.error('[Summarize] Error:', err.message, err.stack);
-    res.status(500).json({ error: 'Failed to generate summary: ' + err.message, stack: err.stack });
+    console.error('[Summarize] Error:', err.message);
+    // SECURITY FIX: Never send err.stack or full err.message to client
+    const safeMessage = err.message.startsWith('SSRF blocked')
+      ? 'Invalid file URL'
+      : 'Failed to generate summary';
+    res.status(err.message.startsWith('SSRF blocked') ? 400 : 500).json({ error: safeMessage });
   }
 });
 

@@ -1,5 +1,8 @@
-# Use Node.js 20 Alpine as base
+# Use Node.js 22 Alpine as base
 FROM node:22-alpine
+
+# Create non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Set working directory
 WORKDIR /app
@@ -12,6 +15,12 @@ RUN npm install
 
 # Copy source code
 COPY . .
+
+# Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 5173

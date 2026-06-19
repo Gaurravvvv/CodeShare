@@ -4,6 +4,9 @@ FROM node:20-alpine
 # Install LibreOffice headless and standard fonts for PPTX → PDF conversion
 RUN apk add --no-cache libreoffice font-liberation ttf-dejavu font-noto
 
+# Create non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 # Set working directory
 WORKDIR /app
 
@@ -11,10 +14,19 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --omit=dev
 
 # Copy source code
 COPY . .
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 3001

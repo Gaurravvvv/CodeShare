@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import DOMPurify from 'dompurify';
 import './FilePreviewModal.css';
 import ReactMarkdown from 'react-markdown';
 
@@ -108,7 +109,16 @@ function DocxPreview({ url }) {
         if (!res.ok) throw new Error('Fetch failed');
         const ab = await res.arrayBuffer();
         const result = await mammoth.convertToHtml({ arrayBuffer: ab });
-        if (!cancelled) { setHtml(result.value); setLoading(false); }
+        // Sanitize HTML to prevent XSS from malicious DOCX files
+        const sanitizedHtml = DOMPurify.sanitize(result.value, {
+          ALLOWED_TAGS: ['p', 'br', 'b', 'i', 'u', 'em', 'strong', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                         'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'span', 'div',
+                         'a', 'img', 'blockquote', 'pre', 'code', 'sup', 'sub'],
+          ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'style', 'colspan', 'rowspan'],
+          FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
+          FORBID_ATTR: ['onerror', 'onclick', 'onload', 'onmouseover'],
+        });
+        if (!cancelled) { setHtml(sanitizedHtml); setLoading(false); }
       } catch (err) {
         if (!cancelled) { setError('Failed to render document'); setLoading(false); }
       }

@@ -3,12 +3,26 @@ import './FileZone.css';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
+// Dangerous file extensions blocked for security
+const BLOCKED_EXTENSIONS = new Set([
+  'exe', 'bat', 'cmd', 'sh', 'ps1', 'msi', 'dll', 'scr',
+  'com', 'vbs', 'vbe', 'wsf', 'wsh', 'cpl', 'inf', 'reg',
+  'pif', 'hta', 'jar', 'app',
+]);
+
 export default function FileZone({ isAdmin, onFileUpload, uploading }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
 
   const validateFile = useCallback((file) => {
+    // Check for blocked file types
+    const ext = (file.name || '').split('.').pop()?.toLowerCase() || '';
+    if (BLOCKED_EXTENSIONS.has(ext)) {
+      setError(`".${ext}" files are not allowed for security reasons`);
+      setTimeout(() => setError(''), 4000);
+      return false;
+    }
     if (file.size > MAX_FILE_SIZE) {
       setError(`"${file.name}" exceeds 20 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
       setTimeout(() => setError(''), 4000);
