@@ -23,7 +23,7 @@ Every step is chosen to be something Gaurav can explain in detail if an intervie
 4. GitHub Actions CI (build + push to GHCR on push to `main`) ✅ **DONE**
 5. Trivy security scan added to CI ✅ **DONE**
 6. Deploy to local K8s cluster (Deployment + Service + HPA + health probes + Redis + ArgoCD GitOps) ✅ **DONE** (Applied & Running)
-7. Prometheus + Grafana dashboards scraping `/metrics` 🔄 **IN PROGRESS**
+7. Prometheus + Grafana dashboards scraping `/metrics` 🔄 **IN PROGRESS (Configs Created)**
 8. Grafana Loki for logs — optional, cuttable if short on time
 9. Terraform for S3 + IAM — independent of the rest, cuttable-ish
 10. README + architecture diagram + resume bullets — do last, once everything works
@@ -71,6 +71,10 @@ Added to the CI workflow, scans post-build for CRITICAL/HIGH CVEs (currently set
 - Patched `metrics-server` with `--kubelet-insecure-tls` so the HPA can read CPU metrics.
 - Fixed the issue where health checks returned `HTTP 429` by moving the `/api/health` and `/metrics` routes above the global rate-limiter in `server/src/index.js`.
 - Verified all pods are running successfully in the local cluster and HPA is retrieving metrics.
+
+### Step 7 — Prometheus + Grafana Setup
+- Updated `k8s/server-service.yaml` to include `name: http` for the port definition.
+- Created `k8s/servicemonitor.yaml` to instruct Prometheus operator to scrape the server `/metrics` endpoint.
 
 ---
 

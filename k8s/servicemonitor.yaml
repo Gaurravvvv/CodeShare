@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: codeshare-server-monitor
+  namespace: default
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: codeshare-server
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
