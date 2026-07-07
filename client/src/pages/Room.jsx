@@ -94,6 +94,10 @@ export default function Room() {
   const chatModeRef = useRef(false);
 
   const isLocalChange = useRef(false);
+  const blocksRef = useRef([]);
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mySocketId, setMySocketId] = useState(null);
 
@@ -339,7 +343,7 @@ export default function Room() {
 
   // Handle clicking a #filename link in chat → switch editor tab
   const handleFileClick = useCallback((filename) => {
-    const block = blocks.find(b => b.name.toLowerCase() === filename.toLowerCase());
+    const block = blocksRef.current.find(b => b.name.toLowerCase() === filename.toLowerCase());
     if (block) {
       setActiveBlockId(block.id);
       setChatMode(false); // Switch back to editor
@@ -347,7 +351,7 @@ export default function Room() {
     } else {
       showToast(`File "${filename}" not found in code blocks`, 'error');
     }
-  }, [blocks]);
+  }, []);
 
   const startRenaming = (block) => {
     setEditingBlockId(block.id);

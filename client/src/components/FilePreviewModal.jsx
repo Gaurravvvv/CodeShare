@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import DOMPurify from 'dompurify';
 import './FilePreviewModal.css';
-import ReactMarkdown from 'react-markdown';
 
 const IMAGE_EXTS = ['png','jpg','jpeg','gif','webp','svg'];
 const VIDEO_EXTS = ['mp4','webm','ogg'];

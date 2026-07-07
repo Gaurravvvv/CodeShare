@@ -10,6 +10,7 @@ import {
   sanitizeUsername,
   pickSafeKeys,
 } from '../middleware/security.js';
+import { activeSocketConnectionsGauge } from '../metrics.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
 const MAX_CHAT_MESSAGE_LENGTH = 2000;
@@ -42,6 +43,7 @@ export function initSocketHandlers(io) {
   const roomUsers = new Map();
 
   io.on('connection', (socket) => {
+    activeSocketConnectionsGauge.inc();
     console.log(`[Socket] Client connected: ${socket.id.slice(0, 8)}...`);
 
     let currentRoom = null;
@@ -318,6 +320,7 @@ export function initSocketHandlers(io) {
      * disconnect: Clean up when client disconnects.
      */
     socket.on('disconnect', async () => {
+      activeSocketConnectionsGauge.dec();
       console.log(`[Socket] Client disconnected: ${socket.id.slice(0, 8)}... (${currentUsername})`);
 
       // Unregister socket session

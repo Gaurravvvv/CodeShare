@@ -7,6 +7,7 @@ import Groq from 'groq-sdk';
 import { redis } from '../config/redis.js';
 import { safeFetch } from '../utils/urlValidator.js';
 import { summarizeLimiter } from '../middleware/security.js';
+import { cacheHitsCounter, cacheMissesCounter } from '../metrics.js';
 
 const router = express.Router();
 
@@ -152,12 +153,15 @@ router.post('/', summarizeLimiter, async (req, res) => {
       const cached = await redis.get(cacheKey);
       if (cached) {
         console.log(`[Summarize] Cache hit for ${fileName}`);
+        cacheHitsCounter.inc();
         try {
           const parsed = JSON.parse(cached);
           return res.json(parsed);
         } catch (err) {
           return res.json({ summary: cached, warnings: [] });
         }
+      } else {
+        cacheMissesCounter.inc();
       }
     }
 

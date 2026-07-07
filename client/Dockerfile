@@ -1,8 +1,5 @@
-# Use Node.js 22 Alpine as base
-FROM node:22-alpine
-
-# Create non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Stage 1: Build
+FROM node:22-alpine AS build
 
 # Set working directory
 WORKDIR /app
@@ -16,14 +13,20 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Change ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Build the project
+RUN npm run build
 
-# Switch to non-root user
-USER appuser
+# Stage 2: Serve
+FROM nginx:alpine
 
-# Expose port
-EXPOSE 5173
+# Copy the built files from Stage 1
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Command for development (ensure host is set to 0.0.0.0 for Vite)
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Copy the Nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Run nginx in foreground
+CMD ["nginx", "-g", "daemon off;"]

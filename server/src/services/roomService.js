@@ -1,6 +1,7 @@
 import { redis } from '../config/redis.js';
 import { customAlphabet } from 'nanoid';
 import { v4 as uuidv4 } from 'uuid';
+import { activeRoomsGauge } from '../metrics.js';
 
 const nanoid = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
 const ROOM_TTL = 7200; // 2 hours in seconds
@@ -36,6 +37,7 @@ export async function createRoom() {
 
   await redis.hset(`room:${roomId}`, roomData);
   await redis.expire(`room:${roomId}`, ROOM_TTL);
+  activeRoomsGauge.inc();
 
   return { roomId, adminToken };
 }

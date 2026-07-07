@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import './ChatPanel.css';
 
 // File extension categories
@@ -36,7 +36,7 @@ function formatTime(ts) {
  * Supports quoted filenames: #"my file.js" and $"my pic.png"
  * Also supports unquoted single-word: #main.js, $icon.png
  */
-function RichText({ text, onFileClick }) {
+const RichText = memo(function RichText({ text, onFileClick }) {
   // Regex matches:
   //   @word           - user mention
   //   #"quoted name"  - code file mention with spaces
@@ -106,7 +106,7 @@ function RichText({ text, onFileClick }) {
       })}
     </>
   );
-}
+});
 
 export default function ChatPanel({ messages, activeUsers, files, blocks, username, roomId, onSendMessage, onFileClick }) {
   const [text, setText] = useState('');
