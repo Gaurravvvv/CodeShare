@@ -39,17 +39,6 @@ const PORT = process.env.PORT || 3000;
 
 // ─── Security Middleware ────────────────────────────────────────────────────────
 app.use(helmetMiddleware);
-app.use(generalLimiter);
-
-// ─── CORS ───────────────────────────────────────────────────────────────────────
-app.use(cors({
-  origin: ALLOWED_ORIGINS,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  credentials: true,
-}));
-
-// ─── Body Parsing (with size limit) ─────────────────────────────────────────────
-app.use(express.json({ limit: '1mb' }));
 
 // ─── Health Check (minimal info disclosure) ─────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -65,6 +54,16 @@ app.get('/metrics', async (req, res) => {
     res.status(500).end(err);
   }
 });
+
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+}));
+
+app.use(express.json({ limit: '1mb' }));
+
+app.use(generalLimiter);
 
 // ─── Routes ─────────────────────────────────────────────────────────────────────
 app.use('/api/rooms', roomRoutes);

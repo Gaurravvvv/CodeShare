@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: codeshare-server
+  labels:
+    app: codeshare-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: codeshare-server
+  template:
+    metadata:
+      labels:
+        app: codeshare-server
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: server
+          image: ghcr.io/gaurravvvv/codeshare-server:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3001
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          env:
+            - name: PORT
+              value: "3001"
+            - name: REDIS_URL
+              value: "redis://:password@redis-service:6379"
