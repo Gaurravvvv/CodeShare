@@ -255,6 +255,40 @@ CodeShare/
 
 ---
 
+## 🛠️ DevOps, CI/CD, & Kubernetes Infrastructure
+
+CodeShare has a production-grade infrastructure pipeline configured for high availability, security scanning, GitOps, and full observability.
+
+### 1. Docker & Local Orchestration
+*   **Multi-Stage Client Build**: The React frontend is compiled in an Alpine-based Node stage, and static assets are served via a custom **Nginx** container configured with gzip compression and routing fallbacks.
+*   **Docker Compose**: The `docker-compose.yml` links the Client, Server, and a password-protected Redis service inside an isolated bridge network, mapping health checks and resource constraints (memory limits).
+
+### 2. GitHub Actions CI & Trivy Security Scanning
+*   **CI Pipeline (`.github/workflows/ci.yml`)**: Builds client and server images on every push to `main` and pushes them to **GitHub Container Registry (GHCR)**.
+*   **Security Scanning**: Uses `aquasecurity/trivy-action` to run automated container security scans post-build, reporting high and critical CVEs.
+
+### 3. Kubernetes Deployment (Kind)
+*   **Local Cluster Management**: Spun up locally inside a **Kind** cluster utilizing `kind-config.yaml` to map NodePort `30080` (where Nginx frontend is exposed) to host port `8080` for browser access.
+*   **Self-Healing & High Availability**: Runs `2` replicas of each service. If a container crashes (e.g. process terminated), Kubelet automatically restarts the container via **liveness and readiness probes** (`/api/health` and `/`) within 15 seconds without causing service disruption.
+*   **Autoscaling (HPA)**: Configured Horizontal Pod Autoscalers (`server-hpa.yaml` / `client-hpa.yaml`) to automatically scale replicas from `2` up to `5` when average CPU utilization exceeds `70%`.
+
+### 4. GitOps Pull-Based CD (ArgoCD)
+*   **GitOps Workflow**: An ArgoCD application manifest (`argocd-app.yaml`) watches the `k8s/` folder on GitHub's `main` branch. 
+*   **Automated Sync**: ArgoCD automatically pulls changes, applies deployments (including Redis and Server/Client), prunes deleted manifests, and heals manual configuration drift in the cluster.
+
+### 5. Prometheus & Grafana Observability
+*   **Metrics Scraping**: Integrated `prom-client` in Node.js server exposing custom stats (Redis summaries cache hit rates, active socket connections, HTTP latency histograms, and active rooms).
+*   **ServiceMonitor Setup**: A `ServiceMonitor` (`k8s/servicemonitor.yaml`) targets the named port of `codeshare-server-service` to scrape application metrics into Prometheus.
+*   **Grafana Dashboard**: Created a custom pre-built JSON dashboard (`k8s/grafana-dashboard.json`) to visualize active sockets, active rooms, response latencies, and cache metrics in real time.
+
+### 6. One-Click Automation Scripts
+To simplify local cluster management, the root directory includes:
+*   `setup-cluster.bat`: Validates the Kind cluster, checks if namespaces (`monitoring`/`argocd`) are configured, and installs Helm charts (ArgoCD and Prometheus stack).
+*   `start-services.bat`: Launches background port-forwarding for the Server API, Grafana UI, and ArgoCD dashboard in minimized terminal windows.
+*   `stop-services.bat`: Terminates all active port-forwarding processes instantly.
+
+---
+
 ## 🤝 Contributing
 
 Contributions, issues, and feature requests are welcome!

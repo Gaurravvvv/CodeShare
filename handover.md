@@ -23,10 +23,10 @@ Every step is chosen to be something Gaurav can explain in detail if an intervie
 4. GitHub Actions CI (build + push to GHCR on push to `main`) ✅ **DONE**
 5. Trivy security scan added to CI ✅ **DONE**
 6. Deploy to local K8s cluster (Deployment + Service + HPA + health probes + Redis + ArgoCD GitOps) ✅ **DONE** (Applied & Running)
-7. Prometheus + Grafana dashboards scraping `/metrics` 🔄 **IN PROGRESS (Configs Created)**
-8. Grafana Loki for logs — optional, cuttable if short on time
-9. Terraform for S3 + IAM — independent of the rest, cuttable-ish
-10. README + architecture diagram + resume bullets — do last, once everything works
+7. Prometheus + Grafana dashboards scraping `/metrics` ✅ **DONE** (Scraping active, custom dashboard config imported, HPA/Self-healing verified)
+8. Grafana Loki for logs — ❌ **SKIPPED**
+9. Terraform for S3 + IAM — ❌ **SKIPPED**
+10. README + architecture diagram + resume bullets — ✅ **DONE** (README documentation updated, automation scripts created)
 
 **If time runs short, cut in this order:** Loki → Terraform → HPA → Trivy. **Never cut Steps 1, 2, 4, 7.**
 
@@ -75,6 +75,13 @@ Added to the CI workflow, scans post-build for CRITICAL/HIGH CVEs (currently set
 ### Step 7 — Prometheus + Grafana Setup
 - Updated `k8s/server-service.yaml` to include `name: http` for the port definition.
 - Created `k8s/servicemonitor.yaml` to instruct Prometheus operator to scrape the server `/metrics` endpoint.
+- Created `k8s/grafana-dashboard.json` containing the pre-configured observability panel layout.
+- Created `commands.md` in the root of the repository as a comprehensive DevOps cheat sheet for all commands used in the project.
+- Created `flow.md` in the root of the repository detailing the chronological DevOps deployment flow.
+- Created `setup-cluster.bat`, `start-services.bat`, and `stop-services.bat` in the root of the repository to automate checking cluster readiness, starting background port forwards, and stopping them.
+- **Verification Tests Conducted**:
+  - **Self-Healing Test**: Manually terminated the server Node process (PID 1). Kubernetes immediately flagged the pod status as `Error` and successfully self-healed/restarted the container back to `1/1 Running` within 15 seconds.
+  - **Autoscaling Test**: Deployed a CPU load generator pod. HPA detected the load increase (CPU spike up to 62%+), and automatically scaled the server replica count from `2` to `3` by provisioning a new pod (`codeshare-server-xxxx-xxxx`). Deleted the load generator, and CPU load normalized back to 5%.
 
 ---
 
