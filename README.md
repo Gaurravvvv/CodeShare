@@ -229,7 +229,9 @@ If your backend is hosted on a free tier (like Render) that sleeps on inactivity
 
 ```text
 CodeShare/
-├── run.bat                 # One-click dev launcher (Redis + Backend + Frontend)
+├── .github/workflows/      # CI/CD Workflows
+│   └── ci.yml              # GitHub Actions CI (Build, Trivy scan, push to GHCR)
+├── .bin/                   # Local binary tools (kind, kubectl, helm)
 ├── client/                 # React Frontend (Vite)
 │   ├── public/             # Static assets (Favicon, Screenshots)
 │   ├── src/
@@ -249,6 +251,26 @@ CodeShare/
 │   │   └── index.js        # Server entry point
 │   ├── Dockerfile
 │   └── package.json
+├── k8s/                    # Kubernetes Manifests
+│   ├── client-deployment.yaml
+│   ├── client-service.yaml
+│   ├── client-hpa.yaml
+│   ├── server-deployment.yaml
+│   ├── server-service.yaml
+│   ├── server-hpa.yaml
+│   ├── redis-deployment.yaml
+│   ├── redis-service.yaml
+│   ├── servicemonitor.yaml # Prometheus ServiceMonitor configuration
+│   └── grafana-dashboard.json # Custom Grafana Dashboard JSON
+├── argocd-app.yaml         # ArgoCD GitOps Application manifest
+├── kind-config.yaml        # Local Kind cluster configuration with port mappings
+├── commands.md             # DevOps Commands A-Z Reference Cheat Sheet
+├── flow.md                 # Chronological DevOps implementation flow guide
+├── handover.md             # Project status, progress checklist & handover notes
+├── setup-cluster.bat       # Cluster readiness verification script
+├── start-services.bat      # Expose services port forwarding automation script
+├── stop-services.bat       # Terminate port-forwarding instances automation script
+├── run.bat                 # One-click dev launcher (Redis + Backend + Frontend)
 ├── docker-compose.yml      # Orchestrates Client, Server, and Redis containers
 └── README.md
 ```
