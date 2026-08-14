@@ -1,52 +1,51 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: codeshare-server
+  name: codeshare-fastapi
   labels:
-    app: codeshare-server
+    app: codeshare-fastapi
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: codeshare-server
+      app: codeshare-fastapi
   template:
     metadata:
       labels:
-        app: codeshare-server
+        app: codeshare-fastapi
     spec:
       imagePullSecrets:
         - name: ghcr-secret
       containers:
-        - name: server
-          image: ghcr.io/gaurravvvv/codeshare-server:latest
+        - name: fastapi
+          image: ghcr.io/gaurravvvv/codeshare-fastapi-server:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 3001
+            - containerPort: 8000
           resources:
             requests:
-              memory: "128Mi"
+              memory: "256Mi"
               cpu: "250m"
             limits:
-              memory: "512Mi"
+              memory: "1024Mi"
               cpu: "1000m"
           livenessProbe:
             httpGet:
               path: /api/health
-              port: 3001
+              port: 8000
             initialDelaySeconds: 15
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /api/health
-              port: 3001
+              port: 8000
             initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 3
           env:
-            - name: PORT
-              value: "3001"
             - name: REDIS_URL
               value: "redis://:password@redis-service:6379"
-            - name: FASTAPI_URL
-              value: "http://fastapi-service:8000"
+          envFrom:
+            - secretRef:
+                name: fastapi-secrets

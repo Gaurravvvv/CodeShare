@@ -20,13 +20,15 @@ flowchart TD
         PPTX_REQ -->|"Receives PDF buffer"| PDFR
     end
 
-    subgraph Backend["Backend (Express + Node.js)"]
-        ROUTE["/api/preview/pptx"] -->|"1. Fetch PPTX from URL"| S3["AWS S3 (presigned URL)"]
-        ROUTE -->|"2. Convert with LibreOffice"| LO["libreoffice --headless --convert-to pdf"]
-        LO -->|"3. Return PDF binary"| ROUTE
+    subgraph Backend["Backend Microservices"]
+        NODE["Node.js Gateway /api/preview/pptx"] -->|"1. Forward POST"| FASTAPI["FastAPI /api/preview/pptx"]
+        FASTAPI -->|"2. Fetch PPTX from URL"| S3["AWS S3 (presigned URL)"]
+        FASTAPI -->|"3. Convert with LibreOffice"| LO["libreoffice --headless --convert-to pdf"]
+        LO -->|"4. Return PDF binary"| FASTAPI
+        FASTAPI -->|"5. Return PDF binary"| NODE
     end
 
-    PPTX_REQ -.->|"HTTP POST { url }"| ROUTE
+    PPTX_REQ -.->|"HTTP POST { url }"| NODE
 
     style Frontend fill:#0d1117,stroke:#00ff41,color:#e0e0e0
     style Backend fill:#0d1117,stroke:#00ffff,color:#e0e0e0
@@ -42,9 +44,10 @@ flowchart TD
 | [FileList.css](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/client/src/components/FileList.css) | **Modified** | Added styles for the View button |
 | [api.js](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/client/src/utils/api.js) | **Modified** | Added `convertPptxToPdf()` API function |
 | [client/package.json](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/client/package.json) | **Modified** | Added `pdfjs-dist`, `mammoth`, `xlsx` |
-| [preview.js](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/server/src/routes/preview.js) | **Created** | Express route for PPTX→PDF conversion |
+| [preview.js](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/server/src/routes/preview.js) | **Modified** | Express route modified to forward PPTX requests to FastAPI |
 | [server/src/index.js](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/server/src/index.js) | **Modified** | Mounted the preview route |
-| [server/Dockerfile](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/server/Dockerfile) | **Modified** | Added LibreOffice headless installation |
+| [fastapi-server/routers/preview.py](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/fastapi-server/routers/preview.py) | **Created** | FastAPI route for LibreOffice PPTX→PDF conversion |
+| [fastapi-server/Dockerfile](file:///c:/Users/VICTUS/OneDrive/Desktop/Internship/Personal/Code%20Share/fastapi-server/Dockerfile) | **Created** | Dedicated Python container with LibreOffice headless |
 
 ## What Was NOT Changed
 

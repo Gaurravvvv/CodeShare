@@ -1,42 +1,32 @@
 import express from 'express';
+import axios from 'axios';
 import * as roomService from '../services/roomService.js';
 import * as filebaseService from '../services/filebaseService.js';
 import { roomCreationLimiter, cronLimiter } from '../middleware/security.js';
 
 const router = express.Router();
+const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
 
 /**
  * POST /api/rooms/cron/cleanup
  * Cron job endpoint to clean up orphaned S3 files.
- * Protected by CRON_SECRET environment variable.
+ * Proxies the request to the FastAPI microservice.
  */
 router.post('/cron/cleanup', cronLimiter, async (req, res) => {
   try {
     const { secret } = req.body;
     
-    // Check if secret is configured and matches
-    if (!process.env.CRON_SECRET) {
-      return res.status(500).json({ error: 'CRON_SECRET is not configured on the server' });
-    }
+    const response = await axios.post(`${FASTAPI_URL}/api/rooms/cron/cleanup`, {
+      secret
+    }, { timeout: 120000 }); // 2 min timeout for heavy S3 cleanup
     
-    // Constant-time comparison to prevent timing attacks
-    if (!secret || typeof secret !== 'string' || secret.length !== process.env.CRON_SECRET.length) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    
-    // Use timing-safe comparison
-    const crypto = await import('crypto');
-    const expected = Buffer.from(process.env.CRON_SECRET);
-    const actual = Buffer.from(secret);
-    if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const result = await filebaseService.cleanupOrphanedFiles(roomService.roomExists);
-    res.json(result);
+    res.json(response.data);
   } catch (err) {
-    console.error('[Room] Cron cleanup error:', err.message);
-    res.status(500).json({ error: 'Failed to execute cron cleanup' });
+    if (err.response) {
+      return res.status(err.response.status).json(err.response.data);
+    }
+    console.error('[Room Proxy] Cron cleanup proxy error:', err.message);
+    res.status(500).json({ error: 'Failed to execute cron cleanup (Microservice Unavailable)' });
   }
 });
 

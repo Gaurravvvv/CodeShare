@@ -15,7 +15,7 @@ Build a coherent, defensible DevOps story around the CodeShare project for the i
 
 Every step is chosen to be something Gaurav can explain in detail if an interviewer (possibly up to CTO-level) digs in — depth over breadth, given this is only a fresher-level round.
 
-**The 10-step flow (source of truth — order matters, dependencies flow downward):**
+**The 11-step flow (source of truth — order matters, dependencies flow downward):**
 
 1. Dockerize app + Redis via docker-compose ✅ **DONE**
 2. Add `/metrics` endpoint (Prometheus client) ✅ **DONE**
@@ -24,11 +24,12 @@ Every step is chosen to be something Gaurav can explain in detail if an intervie
 5. Trivy security scan added to CI ✅ **DONE**
 6. Deploy to local K8s cluster (Deployment + Service + HPA + health probes + Redis + ArgoCD GitOps) ✅ **DONE** (Applied & Running)
 7. Prometheus + Grafana dashboards scraping `/metrics` ✅ **DONE** (Scraping active, custom dashboard config imported, HPA/Self-healing verified)
-8. Grafana Loki for logs — ❌ **SKIPPED**
-9. Terraform for S3 + IAM — ❌ **SKIPPED**
-10. README + architecture diagram + resume bullets — ✅ **DONE** (README documentation updated, automation scripts created)
+8. Microservices Migration (FastAPI worker for CPU-heavy tasks) ✅ **DONE**
+9. Grafana Loki for logs — ❌ **SKIPPED**
+10. Terraform for S3 + IAM — ❌ **SKIPPED**
+11. README + architecture diagram + resume bullets — ✅ **DONE** (README documentation updated, automation scripts created)
 
-**If time runs short, cut in this order:** Loki → Terraform → HPA → Trivy. **Never cut Steps 1, 2, 4, 7.**
+**If time runs short, cut in this order:** Loki → Terraform → HPA → Trivy. **Never cut Steps 1, 2, 4, 7, 8.**
 
 ---
 
@@ -82,6 +83,12 @@ Added to the CI workflow, scans post-build for CRITICAL/HIGH CVEs (currently set
 - **Verification Tests Conducted**:
   - **Self-Healing Test**: Manually terminated the server Node process (PID 1). Kubernetes immediately flagged the pod status as `Error` and successfully self-healed/restarted the container back to `1/1 Running` within 15 seconds.
   - **Autoscaling Test**: Deployed a CPU load generator pod. HPA detected the load increase (CPU spike up to 62%+), and automatically scaled the server replica count from `2` to `3` by provisioning a new pod (`codeshare-server-xxxx-xxxx`). Deleted the load generator, and CPU load normalized back to 5%.
+
+### Step 8 — Microservices Migration (FastAPI)
+- Identified a performance bottleneck where Node.js's event loop was blocked by heavy CPU tasks (LibreOffice conversion, Python-based text extraction for Groq AI).
+- Extracted these endpoints into a separate `fastapi-server/` Python microservice.
+- Modified Node.js Express routes to act as a lightweight API Gateway forwarding requests to FastAPI.
+- Built a secure, non-root `Dockerfile` for FastAPI, updated GitHub Actions to publish it to GHCR, and deployed it into Kubernetes via `fastapi-deployment.yaml` and `fastapi-service.yaml`.
 
 ---
 

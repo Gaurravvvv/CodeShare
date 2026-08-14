@@ -23,7 +23,7 @@ Commands to set up Git configurations and handle version control changes:
 ## 2. Docker & Local Development
 Commands to manage containerization, local orchestration via Compose, and registry interaction:
 
-* **Start application locally (Server + Client + Redis):**
+* **Start application locally (Redis + FastAPI + Node + React):**
   ```powershell
   docker compose up --build -d
   ```
@@ -39,6 +39,7 @@ Commands to manage containerization, local orchestration via Compose, and regist
   ```powershell
   docker build -t ghcr.io/gaurravvvv/codeshare-server:latest ./server
   docker build -t ghcr.io/gaurravvvv/codeshare-client:latest ./client
+  docker build -t ghcr.io/gaurravvvv/codeshare-fastapi-server:latest ./fastapi-server
   ```
 * **Log in to GitHub Container Registry (GHCR):**
   ```powershell
@@ -49,6 +50,7 @@ Commands to manage containerization, local orchestration via Compose, and regist
   ```powershell
   docker push ghcr.io/gaurravvvv/codeshare-server:latest
   docker push ghcr.io/gaurravvvv/codeshare-client:latest
+  docker push ghcr.io/gaurravvvv/codeshare-fastapi-server:latest
   ```
 
 ---
@@ -67,6 +69,7 @@ Commands to manage the local Kubernetes cluster node container:
 * **Load local Docker image into Kind (Bypasses pushing to GHCR for testing):**
   ```powershell
   .\.bin\kind load docker-image ghcr.io/gaurravvvv/codeshare-server:latest --name codeshare
+  .\.bin\kind load docker-image ghcr.io/gaurravvvv/codeshare-fastapi-server:latest --name codeshare
   ```
 * **Delete Kind cluster:**
   ```powershell

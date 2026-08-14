@@ -13,7 +13,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [server, client]
+        service: [server, client, fastapi-server]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
