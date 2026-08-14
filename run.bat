@@ -21,23 +21,29 @@ if %errorlevel% neq 0 (
 )
 
 :: Start Redis container
-echo  [1/3] Starting Redis (Docker)...
+echo  [1/4] Starting Redis (Docker)...
 docker start codeshare-redis 2>nul || docker run -d --name codeshare-redis -p 6379:6379 redis:7-alpine
 echo         Redis running on port 6379
 
 :: Start Backend
-echo  [2/3] Starting Backend (server)...
+echo  [2/4] Starting Backend (server)...
 cd /d "%~dp0server"
 start "CodeShare Backend" cmd /k "npm run dev"
 
+:: Start FastAPI
+echo  [3/4] Starting FastAPI (fastapi-server)...
+cd /d "%~dp0fastapi-server"
+start "CodeShare FastAPI" cmd /k "venv\Scripts\activate && uvicorn main:app --reload --port 8000"
+
 :: Start Frontend
-echo  [3/3] Starting Frontend (client)...
+echo  [4/4] Starting Frontend (client)...
 cd /d "%~dp0client"
 start "CodeShare Frontend" cmd /k "npm run dev"
 
 echo.
 echo  ----------------------------------------
-echo    Backend  :  http://localhost:3001
+echo    Node.js  :  http://localhost:3001
+echo    FastAPI  :  http://localhost:8000
 echo    Frontend :  http://localhost:5173
 echo  ----------------------------------------
 echo.

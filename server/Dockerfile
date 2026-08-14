@@ -1,9 +1,7 @@
 # Use Node.js 20 Alpine as base
 FROM node:20-alpine
 
-# Install LibreOffice headless and standard fonts for PPTX → PDF conversion
-RUN apk add --no-cache libreoffice font-liberation ttf-dejavu font-noto
-
+# Removed LibreOffice dependencies since PPTX conversion moved to FastAPI
 # Create non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
