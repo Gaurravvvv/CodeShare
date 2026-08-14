@@ -25,15 +25,28 @@ graph TD
         FileMan -->|Direct S3 Upload| Storage[(Filebase / S3)]
     end
 
-    subgraph Backend ["Server - Node.js / Express"]
+    subgraph Backend ["Server - Node.js Gateway"]
         API[Express REST API]
-        CronCleanup[Cron Cleanup Endpoint]
+        CronCleanup[Cron Route]
         SocketServer[Socket.IO Server]
         RoomService[Room & TTL Manager]
         
         API --> RoomService
         CronCleanup --> RoomService
         SocketServer <--> RoomService
+    end
+
+    subgraph Microservice ["Worker - Python FastAPI"]
+        FastAPI[FastAPI Server]
+        LibreOffice[LibreOffice / PPTX Converter]
+        PyMuPDF[PyMuPDF / Text Extractor]
+        Groq[Groq AI Agent]
+        Boto3[Boto3 / AWS S3 Cleanup]
+
+        FastAPI --> LibreOffice
+        FastAPI --> PyMuPDF
+        FastAPI --> Groq
+        FastAPI --> Boto3
     end
 
     subgraph Storage_Layer ["State & Storage"]
@@ -43,8 +56,10 @@ graph TD
 
     SocketClient <-->|WebSockets| SocketServer
     UI <-->|HTTP Pre-signed URLs| API
+    API <-->|HTTP Proxy| FastAPI
+    CronCleanup -->|Forward| FastAPI
+    Boto3 -->|Delete Orphans| Storage
     RoomService <-->|State & TTL| Redis
-    CronCleanup -->|Delete Orphans| Storage
 ```
 
 ![Interface Overview](client/public/screenshot.png) 
@@ -89,18 +104,18 @@ Clicking the 👁 **View** button next to any file in the File list opens a glas
 *   **DOCX**: Parsed in-browser using `mammoth.js` to render high-fidelity HTML directly.
 *   **XLSX / CSV**: Loaded into memory via SheetJS (`xlsx`), parsed into JSON rows, and rendered as a stylized HTML table.
 *   **PDF**: Integrated native PDF viewer powered by `pdfjs-dist`.
-*   **PPTX (Server-Side LibreOffice Conversion)**:
+*   **PPTX (Server-Side FastAPI Conversion)**:
     *   PPTX cannot be natively read in-browser. The client fires a request to `POST /api/preview/pptx` with the file URL.
-    *   The backend retrieves the file buffer, saves it in a temporary folder, and spins up a headless LibreOffice process (`soffice --headless --convert-to pdf`).
-    *   To prevent Windows locking exceptions, a unique `-env:UserInstallation` path is specified for the LibreOffice profile.
-    *   The backend returns the converted PDF buffer to the client, which renders it using the PDF previewer.
+    *   The Node.js server acts as an API gateway, forwarding the request to the Python **FastAPI microservice**.
+    *   FastAPI retrieves the file buffer, saves it in a temporary folder, and spins up a headless LibreOffice process (`soffice --headless --convert-to pdf`).
+    *   The FastAPI server returns the converted PDF buffer back through Node.js to the client, which renders it using the PDF previewer.
 
 ### 5. AI Code Analysis & Document Summarization Agent
 Powered by **Groq Cloud API** using the `llama-3.3-70b-versatile` model, users can analyze code or documents with one click:
-*   **Text Extraction Pipeline**:
-    *   **PDF**: Text extracted on the server via `pdfjs-dist/legacy`.
-    *   **DOCX**: Text extracted via `mammoth`.
-    *   **XLSX**: Spreadsheets parsed by SheetJS and formatted as structured CSV text.
+*   **Python Microservice Pipeline**: Heavy text extraction and API calls are offloaded to FastAPI to prevent blocking the Node.js WebSocket event loop.
+    *   **PDF**: Text extracted on the Python server via `PyMuPDF` (pymupdf).
+    *   **DOCX**: Text extracted via `python-docx`.
+    *   **XLSX**: Spreadsheets parsed by `pandas` and formatted as text.
     *   **PPTX**: Converted to PDF via LibreOffice, then PDF text-extracted.
 *   **Rate-Limit Truncation**: Inputs are truncated to 1200 words to respect free-tier Groq API rates.
 *   **Analysis Modes**:
@@ -110,11 +125,11 @@ Powered by **Groq Cloud API** using the `llama-3.3-70b-versatile` model, users c
 
 ### 6. Auto-Destruct & Cron Cleanup
 *   **Room Expire (TTL)**: Redis keys for rooms, active users, chat messages, and ownership hashes are configured with a **2-hour TTL** (7200 seconds). Any room activity (chat message, code modification, join event) resets this TTL.
-*   **Cron-Backed Orphan Reconciler**: 
+*   **FastAPI Cron-Backed Orphan Reconciler**: 
     *   If a backend server sleeps (e.g., Render/Heroku free tiers), Redis keyspace notifications for expiration may be missed, leaving orphaned files in the storage bucket.
     *   A secure endpoint `POST /api/rooms/cron/cleanup` is protected by `CRON_SECRET`.
-    *   The cron job uses AWS S3 SDK with `/` delimiters to list folders inside `rooms/` on Filebase.
-    *   It parses the room IDs from prefixes (e.g., `rooms/ROOM_ID/`), checks Redis for room existence, and calls `deleteRoomFiles` to purge files from the bucket if the room has expired.
+    *   Node.js forwards this request to FastAPI, which uses `boto3` (AWS SDK for Python) to list folders inside `rooms/` on Filebase.
+    *   It parses the room IDs, checks Redis for room existence, and purges files from the bucket if the room has expired.
 
 ---
 
@@ -128,10 +143,14 @@ CodeShare is built on a modern JavaScript ecosystem, prioritizing speed, real-ti
 *   **Real-Time**: `socket.io-client` handles the persistent connection to the backend, broadcasting code changes, chat messages, and user presence instantly.
 *   **In-browser Renderers**: `pdfjs-dist` (PDF preview), `mammoth` (Word document HTML parsing), and `xlsx` (Excel sheet processing).
 
-### 2. Backend (Server)
-*   **Runtime**: Node.js with Express.js for REST API routes (room creation, admin validation, PPTX conversion, AI summary).
-*   **WebSockets**: `socket.io` manages rooms, broadcasts events (code updates, chat, file operations), and handles client disconnections.
-*   **Conversion Engine**: Headless LibreOffice binary execution for converting complex slides to standard formats.
+### 2. Backend (Node.js Gateway)
+*   **Runtime**: Node.js with Express.js for REST API routes and acting as an HTTP proxy.
+*   **WebSockets**: `socket.io` manages rooms, broadcasts events (code updates, chat, file operations), and handles client disconnections without being blocked by heavy CPU tasks.
+
+### 3. Microservice (Python FastAPI)
+*   **Runtime**: Python 3.11 with FastAPI.
+*   **Purpose**: Offloads all heavy, blocking operations from the Node.js event loop.
+*   **Capabilities**: Headless LibreOffice binary execution for PPTX, PyMuPDF for PDF text extraction, Pandas for XLSX parsing, Boto3 for AWS S3 cleanup, and direct integration with the Groq AI API.
 
 ### 3. State & Database (Redis)
 *   **Library**: `ioredis`
@@ -165,14 +184,15 @@ The project includes a `run.bat` file that starts everything in one click:
 2.  **Setup environment variables** (see below).
 3.  **Double-click `run.bat`** — it will:
     *   Start a Redis container via Docker (auto-creates if not exists)
-    *   Launch the Backend dev server (port 3001)
-    *   Launch the Frontend dev server (port 5173)
+    *   Launch the Python FastAPI microservice (port 8000)
+    *   Launch the Node.js Backend gateway (port 3001)
+    *   Launch the React Frontend (port 5173)
 
 ### Option 2: Run with Docker Compose
 ```bash
 docker-compose up --build
 ```
-*Starts Redis, Backend, and Frontend. App available at `http://localhost:5173`.*
+*Starts Redis, FastAPI, Node Backend, and React Frontend. App available at `http://localhost:5173`.*
 
 ### Option 3: Run Manually
 1.  **Start Redis**:

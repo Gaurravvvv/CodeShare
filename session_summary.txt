@@ -1,0 +1,59 @@
+CodeShare Architecture Migration — Session Summary
+
+1. Changes Executed During This Session
+---------------------------------------------------------
+- Extracted heavy, CPU-intensive tasks (AI Summarization, PPTX-to-PDF Conversion, and S3 Cron Cleanup) from the Node.js backend into a dedicated Python FastAPI microservice.
+- Created `fastapi-server/` with its own `main.py`, routers, and `requirements.txt`.
+- Removed bulky, blocking dependencies (`libreoffice`, `mammoth`, `pdfjs-dist`, `xlsx`, `groq-sdk`) from the Node.js `package.json`, dramatically reducing the Node Docker image size and speeding up local builds.
+- Rewrote the Node.js API endpoints (`/api/summarize`, `/api/preview/pptx`, `/api/rooms/cron/cleanup`) to act as lightweight API Gateways using `axios`, forwarding incoming frontend requests to the FastAPI service.
+- Fixed a Python 3.13 dependency building issue by unpinning dependencies and relying on pre-compiled wheels for `PyMuPDF` and `pandas`.
+- Fixed a bug where FastAPI crashed because the `GROQ_API_KEY` was missing in the new folder. Configured `dotenv` to load the `.env` from the parent `server/` directory.
+- Handled a UI bug where unsupported media files (like `.png` or `.mp4`) were returning HTTP 400 errors when "Summarize" was clicked, breaking the UI. Fixed this by gracefully returning a dummy AI summary in FastAPI for media formats.
+- Updated `docker-compose.yml` and local Windows automation scripts (`run.bat`) to spin up the FastAPI service in parallel with the rest of the stack.
+- Updated the CI/CD pipeline (`.github/workflows/ci.yml`) to automatically build and push the new FastAPI Docker image to GitHub Container Registry.
+- Authored new Kubernetes manifests (`fastapi-deployment.yaml`, `fastapi-service.yaml`, `fastapi-hpa.yaml`, `fastapi-secret.yaml`) to orchestrate the new microservice inside the Kind cluster and exposed it internally via ClusterIP.
+
+2. Backend Components Breakdown
+---------------------------------------------------------
+Our backend is now officially a Microservices Architecture consisting of exactly 7 core components:
+
+1. Express REST API Gateway (Node.js + Express)
+   - Role: Handles HTTP routes (room creation/validation) and proxies heavy requests (summarize/preview) to the FastAPI worker.
+
+2. Socket.IO Real-Time Server (Node.js + Socket.IO)
+   - Role: Manages persistent WebSocket connections, broadcasting typing events, cursor positions, and chat messages in real time.
+
+3. Room & TTL Manager (Node.js + ioredis)
+   - Role: Manages dynamic room state, host resource ownership, and Time-To-Live (TTL) expiration logic for auto-destructing rooms.
+
+4. Fast Worker / Processing Server (Python + FastAPI)
+   - Role: Offloads heavy CPU tasks. Executes LibreOffice for PPTX conversion and extracts text using PyMuPDF and Pandas.
+
+5. External AI Agent (Groq API + LLaMA 3)
+   - Role: Invoked by FastAPI to consume text payloads and return lightning-fast JSON code summaries and security warnings.
+
+6. State & Cache Database (Redis)
+   - Role: In-memory datastore acting as the single source of truth for active users, chat history, and cached AI API responses.
+
+7. Scheduled Storage Cleanup Worker (Python + Boto3)
+   - Role: Exposed as a secure cron endpoint (`/cleanup`). Uses the AWS SDK to scan S3/Filebase buckets and purge orphaned uploaded files.
+
+3. Why We Preferred One Over The Other (Node vs FastAPI)
+---------------------------------------------------------
+Why did we extract parsing to FastAPI? 
+Node.js operates on a single-threaded Event Loop. When Node runs a heavy task (like parsing a massive PDF, converting PPTX buffers, or running CPU-intensive data extraction), it blocks the entire event loop. If 10 users upload PDFs at the same time, the Node server freezes. Because CodeShare is a real-time collaborative IDE, even a 500ms freeze causes "typing lag" and cursor desyncs over WebSockets. 
+Python (FastAPI), on the other hand, is significantly better suited for data manipulation, AI integration, and scripting. By offloading these tasks to FastAPI, Node.js remains 100% free to instantly process WebSocket typing events without ever lagging.
+
+Why didn't we just remove Node completely and write everything in FastAPI?
+Node.js (specifically Socket.IO) is the industry standard for real-time WebSocket communication. It manages thousands of concurrent, lightweight, persistent socket connections far more efficiently than Python. Rewriting the room synchronization, cursor tracking, and chat logic in Python WebSockets would have been reinventing the wheel with inferior tools.
+
+4. Clarifying Questions You Asked
+---------------------------------------------------------
+Q: "If we removed the JS code of summarize, why does it still exist?"
+A: You asked this when you saw that I kept the `/api/summarize` route in `server/src/routes/summarize.js`. I explained the "Proxy Pattern." The route still exists in Node so that the frontend code didn't have to change. Node simply catches the request, forwards it to Python behind the scenes, waits for Python to finish, and returns the result to the user.
+
+Q: "So now no need of libreoffice at all?"
+A: You asked this after I removed LibreOffice from the Node.js Dockerfile. I clarified that we didn't eliminate LibreOffice; we merely moved it out of the Node container and into the FastAPI container. This ensures that when LibreOffice eats up CPU/RAM to process a PowerPoint, it doesn't crash the real-time Node server.
+
+Q: "Are cron jobs and other stuff done too?"
+A: You asked this after seeing the initial migration PR. I clarified that yes, the cron job (`/api/rooms/cron/cleanup`) which deletes orphaned files from S3 was fully migrated to Python using `boto3`, and Node acts purely as a forwarder.

@@ -85,3 +85,17 @@ To prove the resilience of the cluster, we conducted two major validation exerci
     * Observed the HPA register a CPU load increase (`62%`).
     * Watched the cluster scale up from **2 replicas to 3** dynamically to balance the load.
     * Deleted the generator, watched the CPU return to normal (`5%`), and observed the cluster downscale back to `2` replicas.
+
+---
+
+## Phase 7: Microservices Migration (Python & FastAPI)
+To prevent heavy CPU tasks from blocking Node.js's single-threaded event loop and causing WebSocket lag, we decoupled data processing into a new microservice.
+
+15. **Extracted Heavy Operations to Python:**
+    * Created `fastapi-server/` with a Python 3.11 environment.
+    * Moved LibreOffice PPTX conversion, PyMuPDF text extraction, Pandas Excel parsing, and AWS S3 Boto3 cleanup scripts out of Node.js.
+    * Rewrote the Node.js API endpoints (`/api/summarize`, `/api/preview/pptx`, `/api/rooms/cron/cleanup`) to act as lightweight API Gateways using `axios`.
+16. **Kubernetes Integration for FastAPI:**
+    * Updated `.github/workflows/ci.yml` to build and push `ghcr.io/gaurravvvv/codeshare-fastapi-server:latest`.
+    * Created Kubernetes manifests (`fastapi-deployment.yaml`, `fastapi-service.yaml`, `fastapi-hpa.yaml`) to deploy the microservice.
+    * Injected `FASTAPI_URL` into the Node.js deployment, allowing Node to internally route heavy tasks to the Python worker pods.
