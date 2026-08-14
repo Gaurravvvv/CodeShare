@@ -47,3 +47,11 @@ server/testSocket.js
 .agent/
 .agents/
 brain/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
