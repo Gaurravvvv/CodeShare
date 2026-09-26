@@ -305,9 +305,11 @@ CodeShare has a production-grade infrastructure pipeline configured for high ava
 *   **Multi-Stage Client Build**: The React frontend is compiled in an Alpine-based Node stage, and static assets are served via a custom **Nginx** container configured with gzip compression and routing fallbacks.
 *   **Docker Compose**: The `docker-compose.yml` links the Client, Server, and a password-protected Redis service inside an isolated bridge network, mapping health checks and resource constraints (memory limits).
 
-### 2. GitHub Actions CI & Trivy Security Scanning
-*   **CI Pipeline (`.github/workflows/ci.yml`)**: Builds client and server images on every push to `main` and pushes them to **GitHub Container Registry (GHCR)**.
+### 2. GitHub Actions CI & Automated GitOps Release
+*   **CI Pipeline (`.github/workflows/ci.yml`)**: Builds `client`, `server`, and `fastapi-server` container images on push to `main`.
+*   **Versioned Image Tagging**: Images are tagged with the commit SHA (`${IMAGE_TAG}`) and `:latest`, then published to **GitHub Container Registry (GHCR)**.
 *   **Security Scanning**: Uses `aquasecurity/trivy-action` to run automated container security scans post-build, reporting high and critical CVEs.
+*   **Automated GitOps Manifest Update**: Once images are verified and pushed to GHCR, the workflow automatically updates image tags in the `k8s/` manifests (`client-deployment.yaml`, `server-deployment.yaml`, and `fastapi-deployment.yaml`) and commits the changes back to `main` using `[skip ci]` to prevent recursive pipelines.
 
 ### 3. Kubernetes Deployment (Kind)
 *   **Local Cluster Management**: Spun up locally inside a **Kind** cluster utilizing `kind-config.yaml` to map NodePort `30080` (where Nginx frontend is exposed) to host port `8080` for browser access.
@@ -315,8 +317,8 @@ CodeShare has a production-grade infrastructure pipeline configured for high ava
 *   **Autoscaling (HPA)**: Configured Horizontal Pod Autoscalers (`server-hpa.yaml` / `client-hpa.yaml`) to automatically scale replicas from `2` up to `5` when average CPU utilization exceeds `70%`.
 
 ### 4. GitOps Pull-Based CD (ArgoCD)
-*   **GitOps Workflow**: An ArgoCD application manifest (`argocd-app.yaml`) watches the `k8s/` folder on GitHub's `main` branch. 
-*   **Automated Sync**: ArgoCD automatically pulls changes, applies deployments (including Redis and Server/Client), prunes deleted manifests, and heals manual configuration drift in the cluster.
+*   **GitOps Workflow**: An ArgoCD application manifest (`argocd-app.yaml`) watches the `k8s/` directory on GitHub's `main` branch. 
+*   **Automated Sync**: When CI commits updated image tags to the manifests, ArgoCD immediately detects the commit, pulls the manifests, rolls out the new versioned images to the Kind cluster, prunes obsolete resources, and heals configuration drift.
 
 ### 5. Prometheus & Grafana Observability
 *   **Metrics Scraping**: Integrated `prom-client` in Node.js server exposing custom stats (Redis summaries cache hit rates, active socket connections, HTTP latency histograms, and active rooms).

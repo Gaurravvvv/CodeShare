@@ -1,22 +1,36 @@
-name: "CI - Build and Push to GHCR"
+name: "CI - Build, Push to GHCR & Update Manifests"
 
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'k8s/**'
+      - 'argocd-app.yaml'
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     strategy:
       matrix:
         service: [server, client, fastapi-server]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set environment variables
+        run: |
+          echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -30,12 +44,61 @@ jobs:
         with:
           context: ./${{ matrix.service }}
           push: true
-          tags: ghcr.io/gaurravvvv/codeshare-${{ matrix.service }}:latest
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/codeshare-${{ matrix.service }}:${{ env.IMAGE_TAG }}
+            ghcr.io/${{ env.OWNER_LC }}/codeshare-${{ matrix.service }}:latest
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         with:
-          image-ref: 'ghcr.io/gaurravvvv/codeshare-${{ matrix.service }}:latest'
+          image-ref: 'ghcr.io/${{ env.OWNER_LC }}/codeshare-${{ matrix.service }}:${{ env.IMAGE_TAG }}'
           format: 'table'
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
+
+  update-manifests:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Image Tag
+        run: |
+          echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Update Kubernetes manifests
+        run: |
+          echo "Updating deployment manifests to tag: ${IMAGE_TAG}"
+          
+          # Update client deployment
+          sed -i -E "s|(image:\s*['\"]?ghcr\.io/[^/]+/codeshare-client):[^'\"]*(['\"]?)|\1:${IMAGE_TAG}\2|" k8s/client-deployment.yaml
+          
+          # Update server deployment
+          sed -i -E "s|(image:\s*['\"]?ghcr\.io/[^/]+/codeshare-server):[^'\"]*(['\"]?)|\1:${IMAGE_TAG}\2|" k8s/server-deployment.yaml
+          
+          # Update fastapi-server deployment
+          sed -i -E "s|(image:\s*['\"]?ghcr\.io/[^/]+/codeshare-fastapi-server):[^'\"]*(['\"]?)|\1:${IMAGE_TAG}\2|" k8s/fastapi-deployment.yaml
+
+          echo "Diff of changes:"
+          git diff k8s/
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add k8s/
+          if git diff --staged --quiet; then
+            echo "No changes in manifests to commit."
+          else
+            git commit -m "ci: update manifest image tags to ${IMAGE_TAG} [skip ci]"
+            git pull --rebase origin main
+            git push origin main
+          fi
