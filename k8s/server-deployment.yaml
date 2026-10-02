@@ -18,7 +18,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: server
-          image: ghcr.io/gaurravvvv/codeshare-server:latest
+          image: ghcr.io/gaurravvvv/codeshare-server:b26b056
           imagePullPolicy: Always
           ports:
             - containerPort: 3001
