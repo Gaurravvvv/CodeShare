@@ -13,6 +13,12 @@ export default function Landing() {
   const scannerInstanceRef = useRef(null);
   const navigate = useNavigate();
 
+  // Pre-warm backend on page load to minimize cold start wait time
+  useEffect(() => {
+    const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    fetch(`${API_URL}/api/health`).catch(() => {});
+  }, []);
+
   const handleJoinRoom = useCallback(async (e) => {
     e.preventDefault();
     const id = roomId.trim().toUpperCase();
@@ -31,7 +37,7 @@ export default function Landing() {
       if (err.response?.status === 404) {
         setError('Room not found or expired');
       } else {
-        setError('Connection error. Is the server running?');
+        setError('Connection error or server waking up. Please wait 15s and retry.');
       }
     } finally {
       setLoading(false);
@@ -48,7 +54,7 @@ export default function Landing() {
       localStorage.setItem(`admin_${data.roomId}`, data.adminToken);
       navigate(`/room/${data.roomId}`);
     } catch (err) {
-      setError('Failed to create room. Is the server running?');
+      setError('Server may still be waking up. Please wait 50s and click Create again.');
     } finally {
       setLoading(false);
     }
@@ -151,7 +157,7 @@ export default function Landing() {
           onClick={handleCreateRoom}
           disabled={loading}
         >
-          + Create Room
+          {loading ? 'Starting...' : '+ Create Room'}
         </button>
       </div>
 
@@ -162,6 +168,23 @@ export default function Landing() {
             <span className="text-accent">$</span> codeshare <span className="text-accent">--join</span>
           </span>
         </div>
+
+        {/* Free Tier Spin-up Notice */}
+        <div className="landing__notice">
+          <div className="landing__notice-header">
+            <span className="landing__notice-badge mono">⚡ FREE TIER NOTICE</span>
+          </div>
+          <p className="landing__notice-text">
+            Hosted on a free instance that spins down during inactivity. The <strong>first request may take ~50–60 seconds</strong> to wake up.
+          </p>
+        </div>
+
+        {loading && (
+          <div className="landing__waking-status mono">
+            <span className="landing__waking-spinner"></span>
+            <span>Waking up backend instance (takes ~50s on cold start)...</span>
+          </div>
+        )}
 
         <form onSubmit={handleJoinRoom} className="landing__form">
           <div className="landing__input-wrapper">

@@ -69,6 +69,76 @@
   letter-spacing: 0.02em;
 }
 
+/* ─── Free Tier Notice ─── */
+.landing__notice {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(255, 170, 0, 0.05);
+  border: 1px solid rgba(255, 170, 0, 0.22);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.3s ease;
+}
+
+.landing__notice-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing__notice-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #ffaa00;
+  background: rgba(255, 170, 0, 0.12);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.landing__notice-text {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.landing__notice-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ─── Waking Status ─── */
+.landing__waking-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 14px;
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.25);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 0.8rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.landing__waking-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 255, 65, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
 /* ─── Form ─── */
 .landing__form {
   display: flex;
